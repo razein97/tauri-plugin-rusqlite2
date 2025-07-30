@@ -25,7 +25,7 @@ Default permissions for the rusqlite plugin.
 <tr>
 <td>
 
-`rusqlite:allow-begin-transaction`
+`rusqlite2:allow-begin-transaction`
 
 </td>
 <td>
@@ -38,7 +38,7 @@ Enables the begin_transaction command without any pre-configured scope.
 <tr>
 <td>
 
-`rusqlite:deny-begin-transaction`
+`rusqlite2:deny-begin-transaction`
 
 </td>
 <td>
@@ -51,7 +51,7 @@ Denies the begin_transaction command without any pre-configured scope.
 <tr>
 <td>
 
-`rusqlite:allow-close`
+`rusqlite2:allow-close`
 
 </td>
 <td>
@@ -64,7 +64,7 @@ Enables the close command without any pre-configured scope.
 <tr>
 <td>
 
-`rusqlite:deny-close`
+`rusqlite2:deny-close`
 
 </td>
 <td>
@@ -77,7 +77,7 @@ Denies the close command without any pre-configured scope.
 <tr>
 <td>
 
-`rusqlite:allow-commit-transaction`
+`rusqlite2:allow-commit-transaction`
 
 </td>
 <td>
@@ -90,7 +90,7 @@ Enables the commit_transaction command without any pre-configured scope.
 <tr>
 <td>
 
-`rusqlite:deny-commit-transaction`
+`rusqlite2:deny-commit-transaction`
 
 </td>
 <td>
@@ -103,7 +103,7 @@ Denies the commit_transaction command without any pre-configured scope.
 <tr>
 <td>
 
-`rusqlite:allow-execute`
+`rusqlite2:allow-execute`
 
 </td>
 <td>
@@ -116,7 +116,7 @@ Enables the execute command without any pre-configured scope.
 <tr>
 <td>
 
-`rusqlite:deny-execute`
+`rusqlite2:deny-execute`
 
 </td>
 <td>
@@ -129,7 +129,7 @@ Denies the execute command without any pre-configured scope.
 <tr>
 <td>
 
-`rusqlite:allow-load`
+`rusqlite2:allow-load`
 
 </td>
 <td>
@@ -142,7 +142,7 @@ Enables the load command without any pre-configured scope.
 <tr>
 <td>
 
-`rusqlite:deny-load`
+`rusqlite2:deny-load`
 
 </td>
 <td>
@@ -155,7 +155,7 @@ Denies the load command without any pre-configured scope.
 <tr>
 <td>
 
-`rusqlite:allow-migrate`
+`rusqlite2:allow-migrate`
 
 </td>
 <td>
@@ -168,7 +168,7 @@ Enables the migrate command without any pre-configured scope.
 <tr>
 <td>
 
-`rusqlite:deny-migrate`
+`rusqlite2:deny-migrate`
 
 </td>
 <td>
@@ -181,7 +181,7 @@ Denies the migrate command without any pre-configured scope.
 <tr>
 <td>
 
-`rusqlite:allow-rollback-transaction`
+`rusqlite2:allow-rollback-transaction`
 
 </td>
 <td>
@@ -194,7 +194,7 @@ Enables the rollback_transaction command without any pre-configured scope.
 <tr>
 <td>
 
-`rusqlite:deny-rollback-transaction`
+`rusqlite2:deny-rollback-transaction`
 
 </td>
 <td>
@@ -207,7 +207,7 @@ Denies the rollback_transaction command without any pre-configured scope.
 <tr>
 <td>
 
-`rusqlite:allow-select`
+`rusqlite2:allow-select`
 
 </td>
 <td>
@@ -220,7 +220,7 @@ Enables the select command without any pre-configured scope.
 <tr>
 <td>
 
-`rusqlite:deny-select`
+`rusqlite2:deny-select`
 
 </td>
 <td>

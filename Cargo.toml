@@ -1,5 +1,5 @@
 [package]
-name = "tauri-plugin-rusqlite"
+name = "tauri-plugin-rusqlite2"
 version = "2.0.0"
 authors = ["Rohit Singh <razein@wizql.com>"]
 description = "Tauri SQLite plugin using rusqlite"
@@ -7,10 +7,10 @@ edition = "2021"
 readme = "README.md"
 rust-version = "1.77.2"
 keywords = ["tauri-plugin", "tauri", "sql", "sqlite", "rusqlite"]
-repository = "https://github.com/razein97/tauri-plugin-rusqlite"
+repository = "https://github.com/razein97/tauri-plugin-rusqlite2"
 license = "MIT OR Apache-2.0"
 exclude = ["/examples", "/dist-js", "/guest-js", "/node_modules"]
-links = "tauri-plugin-rusqlite"
+links = "tauri-plugin-rusqlite2"
 
 
 [package.metadata.docs.rs]

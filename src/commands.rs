@@ -9,7 +9,7 @@ use tauri::Manager;
 use tauri::{command, AppHandle, Runtime, State};
 
 // Updated imports
-use crate::{convert, DbInfo, Error, LastInsertId, MigrationList, RusqliteConnections}; // Removed DbInfo
+use crate::{convert, DbInfo, Error, LastInsertId, MigrationList, Rusqlite2Connections}; // Removed DbInfo
 use rusqlite::Connection; // Removed params_from_iter, Statement
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -64,7 +64,7 @@ pub(crate) fn get_conn_url<R: Runtime>(
 #[command]
 pub(crate) fn load<R: Runtime>(
     app: AppHandle<R>,
-    connections: State<'_, RusqliteConnections<R>>,
+    connections: State<'_, Rusqlite2Connections<R>>,
     db: String,
 ) -> Result<String, crate::Error> {
     let (kind, path_part) = db
@@ -123,7 +123,7 @@ pub(crate) fn load<R: Runtime>(
 pub(crate) fn close<R: Runtime>(
     _app: AppHandle<R>,
     // Removed async as no async ops needed now
-    connections: State<'_, RusqliteConnections<R>>,
+    connections: State<'_, Rusqlite2Connections<R>>,
     // transactions: State<'_, TransactionManager>, // TODO: Handle open transactions?
     db: Option<String>,
 ) -> Result<bool, crate::Error> {
@@ -159,7 +159,7 @@ pub(crate) fn close<R: Runtime>(
 #[command]
 pub(crate) fn begin_transaction<R: Runtime>(
     _app: AppHandle<R>,
-    connections: State<'_, RusqliteConnections<R>>,
+    connections: State<'_, Rusqlite2Connections<R>>,
     db_alias: String,
 ) -> Result<String, crate::Error> {
     // Get DbInfo from ConnectionManager
@@ -206,7 +206,7 @@ pub(crate) fn begin_transaction<R: Runtime>(
 #[command]
 pub(crate) fn commit_transaction<R: Runtime>(
     _app: AppHandle<R>,
-    connections: State<'_, RusqliteConnections<R>>,
+    connections: State<'_, Rusqlite2Connections<R>>,
     tx_id: String,
 ) -> Result<(), crate::Error> {
     let uuid = Uuid::from_str(&tx_id).map_err(|_| Error::InvalidUuid(tx_id.clone()))?;
@@ -234,7 +234,7 @@ pub(crate) fn commit_transaction<R: Runtime>(
 #[command]
 pub(crate) fn rollback_transaction<R: Runtime>(
     _app: AppHandle<R>,
-    connections: State<'_, RusqliteConnections<R>>,
+    connections: State<'_, Rusqlite2Connections<R>>,
     tx_id: String,
 ) -> Result<(), crate::Error> {
     let uuid = Uuid::from_str(&tx_id).map_err(|_| Error::InvalidUuid(tx_id.clone()))?;
@@ -266,7 +266,7 @@ pub(crate) fn rollback_transaction<R: Runtime>(
 #[command]
 pub(crate) fn execute<R: Runtime>(
     _app: AppHandle<R>,
-    connections: State<'_, RusqliteConnections<R>>,
+    connections: State<'_, Rusqlite2Connections<R>>,
     db_alias: String,
     query: String,
     values: Vec<JsonValue>,
@@ -322,7 +322,7 @@ pub(crate) fn execute<R: Runtime>(
 #[command]
 pub(crate) fn select<R: Runtime>(
     _app: AppHandle<R>,
-    connections: State<'_, RusqliteConnections<R>>,
+    connections: State<'_, Rusqlite2Connections<R>>,
     db_alias: String,
     query: String,
     values: Vec<JsonValue>,
@@ -412,7 +412,7 @@ pub(crate) fn select<R: Runtime>(
 #[command]
 pub(crate) fn migrate<R: Runtime>(
     app: AppHandle<R>,
-    connections: State<'_, RusqliteConnections<R>>,
+    connections: State<'_, Rusqlite2Connections<R>>,
     version: usize,
     db: String,
 ) -> Result<(), crate::Error> {
@@ -435,7 +435,7 @@ pub(crate) fn migrate<R: Runtime>(
     let resolved_migrations = mig_list.clone().resolve();
     let migrations = RusqliteMigrations::new(resolved_migrations);
 
-    migrations.to_version(&mut conn, version).unwrap();
+    let _ = migrations.to_version(&mut conn, version);
 
     conn.close().map_err(|(_, e)| {
         Error::ConnectionFailed(

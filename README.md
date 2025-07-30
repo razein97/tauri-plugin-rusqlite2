@@ -21,26 +21,32 @@ Install the Core plugin by adding the following to your `Cargo.toml` file:
 ```toml
 # Point this to your fork's repository and branch/tag/rev
 # Example using a GitHub repo:
-[dependencies.tauri-plugin-rusqlite]
-git = "https://github.com/razein97/tauri-plugin-rusqlite"
+[dependencies.tauri-plugin-rusqlite2]
+git = "https://github.com/razein97/tauri-plugin-rusqlite2"
 
 # Or use a local path if developing locally:
 # path = "../path/to/your/fork/tauri-plugin-rusqlite"
+```
+
+The package can also be installed by using cargo:
+
+```sh
+cargo add tauri-plugin-rusqlite2
 ```
 
 You can install the JavaScript Guest bindings using your preferred JavaScript package manager:
 
 ```sh
 # If you publish your fork's JS package:
-# pnpm add @your-npm-scope/tauri-plugin-rusqlite-fork
-# or npm add @your-npm-scope/tauri-plugin-rusqlite-fork
-# or yarn add @your-npm-scope/tauri-plugin-rusqlite-fork
+# pnpm add @your-npm-scope/tauri-plugin-rusqlite2-fork
+# or npm add @your-npm-scope/tauri-plugin-rusqlite2-fork
+# or yarn add @your-npm-scope/tauri-plugin-rusqlite2-fork
 
 # Alternatively, install directly from the JS directory in your fork:
 # (Assuming your fork is checked out locally)
-pnpm add ../path/to/your/fork/tauri-plugin-rusqlite/guest-js
-# or npm add ../path/to/your/fork/tauri-plugin-rusqlite/guest-js
-# or yarn add ../path/to/your/fork/tauri-plugin-rusqlite/guest-js
+pnpm add ../path/to/your/fork/tauri-plugin-rusqlite2/guest-js
+# or npm add ../path/to/your/fork/tauri-plugin-rusqlite2/guest-js
+# or yarn add ../path/to/your/fork/tauri-plugin-rusqlite2/guest-js
 ```
 
 ## Usage
@@ -53,7 +59,7 @@ First you need to register the core plugin with Tauri:
 fn main() {
     tauri::Builder::default()
         // Ensure you are using the Builder from *your* forked crate
-        .plugin(tauri_plugin_rusqlite::Builder::default().build())
+        .plugin(tauri_plugin_rusqlite2::Builder::default().build())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -65,7 +71,7 @@ Afterwards all the plugin's APIs are available through the JavaScript guest bind
 
 ```javascript
 // Import from your fork's JS bindings
-import Database from '@your-npm-scope/tauri-plugin-sql-fork'; // Or the local path
+import Database from '@razein97/tauri-plugin-rusqlite2'; // Or the local path
 
 // sqlite. The path can be relative to `tauri::api::path::BaseDirectory::AppConfig` or absolute.
 const db = await Database.load('sqlite:test.db');
@@ -84,17 +90,17 @@ const users = await db.select('SELECT * FROM users');
 
 #[tauri::command]
 fn load_database(app: tauri::AppHandle) {
-  let db = app.rusqlite_connection()
+  let db = app.rusqlite2_connection()
             .load("sqlite:test.db")
             .unwrap();
 
 
-let memory_db = app.rusqlite_connection()
+let memory_db = app.rusqlite2_connection()
                 .load("sqlite::memory:")
                     .unwrap();
 
 let result:Result<(u64, LastInsertId), Error> =
-    app.rusqlite_connection().execute(
+    app.rusqlite2_connection().execute(
         db,
         "INSERT into users (name) VALUES (?)".to_string(),
         ["BOB"].iter().map(|f| json!(f)).collect(),
@@ -102,7 +108,7 @@ let result:Result<(u64, LastInsertId), Error> =
 );
 
 let result:Result<Vec<IndexMap<String, JsonValue>>, Error> =
-    app.rusqlite_connection().select(
+    app.rusqlite2_connection().select(
         db,
         "SELECT name from items WHERE owner_id = ?".to_string(),
         vec![json!(1)],
@@ -139,7 +145,7 @@ const users = await db.select('SELECT * from users WHERE name = ?', ['Alice']);
 ```rust
 //INSERT example
 let result =
-    app.rusqlite_connection().execute(
+    app.rusqlite2_connection().execute(
         db,
         "INSERT into todos (id, title, status) VALUES (?, ?, ?)".to_string(),
         vec![json!(todos.id), json!(todos.title), json!(todos.status)],
@@ -149,7 +155,7 @@ let result =
 
 //UPDATE example
 let result =
-    app.rusqlite_connection().execute(
+    app.rusqlite2_connection().execute(
         db,
         "UPDATE todos SET title = ?, status = ? WHERE id = ?".to_string(),
         vec![json!(todos.id), json!(todos.title), json!(todos.status)],
@@ -159,7 +165,7 @@ let result =
 
 //SELECT example
 let result:Result<Vec<IndexMap<String, JsonValue>>, Error> =
-     app.rusqlite_connection().select(
+     app.rusqlite2_connection().select(
          db,
          "SELECT * from users WHERE name = ?".to_string(),
          vec![json!("Alice")],
@@ -222,10 +228,10 @@ async function performAtomicUpdate(userId, newName, newItem) {
 ### Rust
 
 ```rust
-  let tx = app.rusqlite_connection().begin_transaction(db).unwrap();
+  let tx = app.rusqlite2_connection().begin_transaction(db).unwrap();
 
   let txn = app
-      .rusqlite_connection()
+      .rusqlite2_connection()
        .select(
            db,
            "INSERT into items (name, owner_id) VALUES (?, ?)".to_string(),
@@ -234,10 +240,10 @@ async function performAtomicUpdate(userId, newName, newItem) {
        )
        .unwrap();
 
-   let commit = app.rusqlite_connection().commit_transaction(tx);
+   let commit = app.rusqlite2_connection().commit_transaction(tx);
 
    if commit.is_err() {
-       app.rusqlite_connection().rollback_transaction(tx);
+       app.rusqlite2_connection().rollback_transaction(tx);
    }
 ```
 
@@ -254,7 +260,7 @@ Migrations are defined in Rust using the `Migration` struct. Each migration shou
 Example of a migration:
 
 ```rust
-use tauri_plugin_rusqlite::{Migration, MigrationKind};
+use tauri_plugin_rusqlite2::{Migration, MigrationKind};
 
 let migration = Migration {
     version: 1,
@@ -272,7 +278,7 @@ Migrations are registered with the `Builder` struct provided by the plugin. Use 
 Example of adding migrations:
 
 ```rust
-use tauri_plugin_rusqlite::{Builder, Migration, MigrationKind};
+use tauri_plugin_rusqlite2::{Builder, Migration, MigrationKind};
 
 fn main() {
     let migrations = vec![
@@ -289,7 +295,7 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(
-            tauri_plugin_rusqlite::Builder::default()
+            tauri_plugin_rusqlite2::Builder::default()
                 .add_migrations("sqlite:mydatabase.db", migrations)
                 .build(),
         )
@@ -304,7 +310,7 @@ To apply the migrations when the plugin is initialized, add the connection strin
 ```json
 {
   "plugins": {
-    "rusqlite": {
+    "rusqlite2": {
       "preload": ["sqlite:mydatabase.db"]
     }
   }
@@ -314,7 +320,7 @@ To apply the migrations when the plugin is initialized, add the connection strin
 Alternatively, the client side `load()` also runs the migrations for a given connection string:
 
 ```ts
-import Database from '@razein97/tauri-plugin-rusqlite';
+import Database from '@razein97/tauri-plugin-rusqlite2';
 const db = await Database.load('sqlite:mydatabase.db');
 ```
 
@@ -327,7 +333,7 @@ await db.migrate(version);
 ```
 
 ```rust
-app.rusqlite_connection().migrate(1).expect("Could not migrate database");
+app.rusqlite2_connection().migrate(1).expect("Could not migrate database");
 ```
 
 Ensure that the migrations are defined in the correct order and are safe to run multiple times.

@@ -1,6 +1,6 @@
-# Tauri Plugin SQLite - JavaScript Bindings (@razein/tauri-plugin-sqlite)
+# Tauri Plugin SQLite - JavaScript Bindings (@razein/tauri-plugin-sqlite2)
 
-This package provides the JavaScript/TypeScript bindings for the `@razein97/tauri-plugin-rusqlite` Tauri plugin.
+This package provides the JavaScript/TypeScript bindings for the `@razein97/tauri-plugin-rusqlite2` Tauri plugin.
 
 > **Note:** This is a fork of `tauri-plugin-sqlite` by @razein97 which is a fork of the official `tauri-plugin-sql` by @bspeckco. It has been modified to use `rusqlite` instead of `sqlx`, **supporting only SQLite databases**. It adds explicit transaction support (`beginTransaction`, `commitTransaction`, `rollbackTransaction`) and migrations.
 
@@ -14,13 +14,13 @@ Install the JavaScript bindings using your preferred package manager:
 
 ```bash
 # Using pnpm
-pnpm add @razein97/tauri-plugin-rusqlite
+pnpm add @razein97/tauri-plugin-rusqlite2
 
 # Using npm
-npm install @razein97/tauri-plugin-rusqlite
+npm install @razein97/tauri-plugin-rusqlite2
 
 # Using yarn
-yarn add @razein97/tauri-plugin-rusqlite
+yarn add @razein97/tauri-plugin-rusqlite2
 ```
 
 ## Usage
@@ -28,7 +28,7 @@ yarn add @razein97/tauri-plugin-rusqlite
 Import the `Database` class and use the `load` method to connect to your SQLite database.
 
 ```typescript
-import Database from '@razein97/tauri-plugin-rusqlite';
+import Database from '@razein97/tauri-plugin-rusqlite2';
 
 async function initializeDb() {
   try {

@@ -1,5 +1,5 @@
 {
-  "name": "@razein97/tauri-plugin-rusqlite",
+  "name": "@razein97/tauri-plugin-rusqlite2",
   "version": "2.0.0",
   "type": "module",
   "description": "A fork of tauri-plugin-sqlite by @bspeckco using rusqlite, supporting only SQLite with added transaction capabilities.",
@@ -21,7 +21,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/razein97/tauri-plugin-rusqlite.git"
+    "url": "git+https://github.com/razein97/tauri-plugin-rusqlite2.git"
   },
   "keywords": [
     "tauri-plugin",
@@ -43,9 +43,9 @@
     "typescript": "^5.0.0"
   },
   "bugs": {
-    "url": "https://github.com/razein97/tauri-plugin-rusqlite/issues"
+    "url": "https://github.com/razein97/tauri-plugin-rusqlitew/issues"
   },
-  "homepage": "https://github.com/razein97/tauri-plugin-rusqlite#readme",
+  "homepage": "https://github.com/razein97/tauri-plugin-rusqlite2#readme",
   "publishConfig": {
     "access": "public"
   }

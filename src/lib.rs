@@ -15,7 +15,7 @@ mod error;
 
 use indexmap::IndexMap;
 use rusqlite::Connection;
-use rusqlite_migration::{Migrations as RusqliteMigrations, M};
+use rusqlite_migration::{Migrations as Rusqlite2Migrations, M};
 use serde_json::Value as JsonValue;
 use tauri::AppHandle;
 
@@ -96,13 +96,13 @@ pub struct ConnectionManager(pub Arc<Mutex<HashMap<String, DbInfo>>>);
 #[derive(Default, Clone)]
 pub struct TransactionManager(pub Arc<Mutex<HashMap<Uuid, Arc<Mutex<rusqlite::Connection>>>>>);
 #[derive(Clone)]
-pub struct RusqliteConnections<R: Runtime> {
+pub struct Rusqlite2Connections<R: Runtime> {
     pub app: AppHandle<R>,
     pub connections: ConnectionManager,
     pub transactions: TransactionManager,
 }
 
-impl<R: Runtime> RusqliteConnections<R> {
+impl<R: Runtime> Rusqlite2Connections<R> {
     ///
     ///
     /// A static initializer which connects to the underlying database and
@@ -116,14 +116,14 @@ impl<R: Runtime> RusqliteConnections<R> {
     /// ```
     /// let app:tauri::AppHandle;
     ///
-    /// let db:String = app.rusqlite_connection()
+    /// let db:String = app.rusqlite2_connection()
     ///      .load("sqlite:test.db".to_string())
     ///      .unwrap();
     ///
     /// ```
     ///
     pub fn load(&self, db: String) -> Result<String, crate::Error> {
-        let connections = self.app.state::<RusqliteConnections<R>>();
+        let connections = self.app.state::<Rusqlite2Connections<R>>();
         crate::commands::load(self.app.clone(), connections, db)
     }
 
@@ -134,12 +134,12 @@ impl<R: Runtime> RusqliteConnections<R> {
     ///committed or rolled back.
     ///
     ///```
-    ///const success:bool = app.rusqlite_connection.close().unwrap();
+    ///const success:bool = app.rusqlite2_connection.close().unwrap();
     ///```
     /// * `dbPath` - The specific database path/alias to close. If omitted, attempts to close the alias associated with this `Database` instance.
     ///
     pub fn close(&self, db: Option<String>) -> Result<bool, crate::Error> {
-        let connections = self.app.state::<RusqliteConnections<R>>();
+        let connections = self.app.state::<Rusqlite2Connections<R>>();
         crate::commands::close(self.app.clone(), connections, db)
     }
 
@@ -152,10 +152,10 @@ impl<R: Runtime> RusqliteConnections<R> {
     /// * `returns` -  The transaction identifier string.
     ///
     /// ```
-    /// let txId:String = app.rusqlite_connection.begin_transaction().unwrap;
+    /// let txId:String = app.rusqlite2_connection.begin_transaction().unwrap;
     /// ```
     pub fn begin_transaction(&self, db: String) -> Result<String, crate::Error> {
-        let connections = self.app.state::<RusqliteConnections<R>>();
+        let connections = self.app.state::<Rusqlite2Connections<R>>();
         crate::commands::begin_transaction(self.app.clone(), connections, db)
     }
 
@@ -164,11 +164,11 @@ impl<R: Runtime> RusqliteConnections<R> {
     ///  * `txId` - The transaction identifier returned by `beginTransaction`.
     ///
     ///```
-    /// let res = app.rusqlite_connection.commit_transaction(txId);
+    /// let res = app.rusqlite2_connection.commit_transaction(txId);
     ///```
     ///
     pub fn commit_transaction(&self, tx_id: String) -> Result<(), crate::Error> {
-        let connections = self.app.state::<RusqliteConnections<R>>();
+        let connections = self.app.state::<Rusqlite2Connections<R>>();
         crate::commands::commit_transaction(self.app.clone(), connections, tx_id)
     }
 
@@ -178,10 +178,10 @@ impl<R: Runtime> RusqliteConnections<R> {
     /// * `txId`` - The transaction identifier returned by `begin_transaction`.
     ///
     /// ```
-    /// let res = app.rusqlite_connection.rollback_transaction(txId);
+    /// let res = app.rusqlite2_connection.rollback_transaction(txId);
     /// ```
     pub fn rollback_transaction(&self, tx_id: String) -> Result<(), crate::Error> {
-        let connections = self.app.state::<RusqliteConnections<R>>();
+        let connections = self.app.state::<Rusqlite2Connections<R>>();
         crate::commands::rollback_transaction(self.app.clone(), connections, tx_id)
     }
 
@@ -198,13 +198,13 @@ impl<R: Runtime> RusqliteConnections<R> {
     ///
     ///
     /// ```rust
-    /// let db:String = app.rusqlite_connection()
+    /// let db:String = app.rusqlite2_connection()
     ///      .load("sqlite:test.db".to_string())
     ///      .unwrap();
     ///
     /// //Simple insert
     /// let result:Result<(u64, LastInsertId), Error> =
-    ///     app.rusqlite_connection().execute(
+    ///     app.rusqlite2_connection().execute(
     ///         db,
     ///         "INSERT into users (name) VALUES (?)".to_string(),
     ///         ["BOB"].iter().map(|f| json!(f)).collect(),
@@ -212,19 +212,19 @@ impl<R: Runtime> RusqliteConnections<R> {
     /// );
     ///
     /// // Insert within a transaction
-    /// let tx:String = app.rusqlite_connection().begin_transaction(db).unwrap();
+    /// let tx:String = app.rusqlite2_connection().begin_transaction(db).unwrap();
     ///
-    /// let txn = app.rusqlite_connection().execute(
+    /// let txn = app.rusqlite2_connection().execute(
     ///         db,
     ///         "INSERT into items (name, owner_id) VALUES (?, ?)".to_string(),
     ///         vec![json!("Laptop"), json!(1)],
     ///         Some(tx),
     ///     ).unwrap();
     ///
-    /// let commit: Result<(), Error> = app.rusqlite_connection().commit_transaction(tx);
+    /// let commit: Result<(), Error> = app.rusqlite2_connection().commit_transaction(tx);
     ///
     /// if commit.is_err(){
-    ///    app.rusqlite_connection().rollback_transaction(tx);
+    ///    app.rusqlite2_connection().rollback_transaction(tx);
     /// }
     ///
     /// ```
@@ -235,7 +235,7 @@ impl<R: Runtime> RusqliteConnections<R> {
         values: Vec<JsonValue>,
         tx_id: Option<String>,
     ) -> Result<(u64, LastInsertId), crate::Error> {
-        let connections = self.app.state::<RusqliteConnections<R>>();
+        let connections = self.app.state::<Rusqlite2Connections<R>>();
         crate::commands::execute(self.app.clone(), connections, db, query, values, tx_id)
     }
 
@@ -251,13 +251,13 @@ impl<R: Runtime> RusqliteConnections<R> {
     ///
     ///
     /// ```rust
-    /// let db:String = app.rusqlite_connection()
+    /// let db:String = app.rusqlite2_connection()
     ///      .load("sqlite:test.db".to_string())
     ///      .unwrap();
     ///
     /// //Simple select
     /// let result:Result<Vec<IndexMap<String, JsonValue>>, Error> =
-    ///     app.rusqlite_connection().select(
+    ///     app.rusqlite2_connection().select(
     ///         db,
     ///         "SELECT name from items WHERE owner_id = ?".to_string(),
     ///         vec![json!(1)],
@@ -265,19 +265,19 @@ impl<R: Runtime> RusqliteConnections<R> {
     /// );
     ///
     /// // Select within a transaction
-    /// let tx:String = app.rusqlite_connection().begin_transaction(db).unwrap();
+    /// let tx:String = app.rusqlite2_connection().begin_transaction(db).unwrap();
     ///
-    /// let txn:Result<Vec<IndexMap<String, JsonValue>>, Error> = app.rusqlite_connection().execute(
+    /// let txn:Result<Vec<IndexMap<String, JsonValue>>, Error> = app.rusqlite2_connection().execute(
     ///         db,
     ///         "SELECT name from items WHERE owner_id = ?".to_string(),
     ///         vec![json!(1)],
     ///         Some(tx),
     ///    ).unwrap();
     ///
-    /// let commit = app.rusqlite_connection().commit_transaction(tx);
+    /// let commit = app.rusqlite2_connection().commit_transaction(tx);
     ///
     /// if commit.is_err(){
-    ///    app.rusqlite_connection().rollback_transaction(tx);
+    ///    app.rusqlite2_connection().rollback_transaction(tx);
     /// }
     ///
     /// ```
@@ -288,7 +288,7 @@ impl<R: Runtime> RusqliteConnections<R> {
         values: Vec<JsonValue>,
         tx_id: Option<String>,
     ) -> Result<Vec<IndexMap<String, JsonValue>>, crate::Error> {
-        let connections = self.app.state::<RusqliteConnections<R>>();
+        let connections = self.app.state::<Rusqlite2Connections<R>>();
         crate::commands::select(self.app.clone(), connections, db, query, values, tx_id)
     }
 
@@ -299,21 +299,21 @@ impl<R: Runtime> RusqliteConnections<R> {
     /// * `version` - The version to migrate to.
     ///
     /// ```
-    /// app.rusqlite_connection().migrate(1).expect("Could not migrate database");
+    /// app.rusqlite2_connection().migrate(1).expect("Could not migrate database");
     /// ```
     pub fn migrate(&self, version: usize, db: String) -> Result<(), crate::Error> {
-        let connections = self.app.state::<RusqliteConnections<R>>();
+        let connections = self.app.state::<Rusqlite2Connections<R>>();
         crate::commands::migrate(self.app.clone(), connections, version, db)
     }
 }
 
-pub trait RusqliteConnectionsExt<R: Runtime> {
-    fn rusqlite_connection(&self) -> &RusqliteConnections<R>;
+pub trait Rusqlite2ConnectionsExt<R: Runtime> {
+    fn rusqlite2_connection(&self) -> &Rusqlite2Connections<R>;
 }
 
-impl<R: Runtime, T: Manager<R>> RusqliteConnectionsExt<R> for T {
-    fn rusqlite_connection(&self) -> &RusqliteConnections<R> {
-        self.state::<RusqliteConnections<R>>().inner()
+impl<R: Runtime, T: Manager<R>> Rusqlite2ConnectionsExt<R> for T {
+    fn rusqlite2_connection(&self) -> &Rusqlite2Connections<R> {
+        self.state::<Rusqlite2Connections<R>>().inner()
     }
 }
 
@@ -347,7 +347,7 @@ impl Builder {
     }
 
     pub fn build<R: Runtime>(mut self) -> TauriPlugin<R, Option<PluginConfig>> {
-        PluginBuilder::<R, Option<PluginConfig>>::new("rusqlite")
+        PluginBuilder::<R, Option<PluginConfig>>::new("rusqlite2")
             .invoke_handler(tauri::generate_handler![
                 commands::load,
                 commands::execute,
@@ -366,7 +366,7 @@ impl Builder {
 
                 run_async_command(async move {
                     // Register new states
-                    app.manage(RusqliteConnections {
+                    app.manage(Rusqlite2Connections {
                         app: app.clone(),
                         connections: ConnectionManager::default(),
                         transactions: TransactionManager::default(),
@@ -387,7 +387,7 @@ impl Builder {
                             mig.0 = migrations.clone().0;
 
                             let resolved_migrations = migrations.resolve();
-                            let migrations = RusqliteMigrations::new(resolved_migrations);
+                            let migrations = Rusqlite2Migrations::new(resolved_migrations);
 
                             migrations.to_latest(&mut conn).unwrap();
                         }
