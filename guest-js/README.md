@@ -25,7 +25,7 @@ yarn add @razein97/tauri-plugin-rusqlite2
 
 ### Rust bindings
 
-The install the rust packageusing cargo:
+Install the rust package using cargo:
 
 ```sh
 cargo add tauri-plugin-rusqlite2
