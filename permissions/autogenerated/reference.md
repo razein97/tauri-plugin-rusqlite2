@@ -1,10 +1,16 @@
 ## Default Permission
 
-Default permissions for the plugin
+Default permissions for the rusqlite plugin.
 
 #### This default permission set includes the following:
 
-- `allow-ping`
+- `allow-load`
+- `allow-execute`
+- `allow-select`
+- `allow-close`
+- `allow-begin-transaction`
+- `allow-commit-transaction`
+- `allow-rollback-transaction`
 
 ## Permission Table
 
@@ -141,32 +147,6 @@ Enables the load command without any pre-configured scope.
 <td>
 
 Denies the load command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`rusqlite:allow-ping`
-
-</td>
-<td>
-
-Enables the ping command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`rusqlite:deny-ping`
-
-</td>
-<td>
-
-Denies the ping command without any pre-configured scope.
 
 </td>
 </tr>

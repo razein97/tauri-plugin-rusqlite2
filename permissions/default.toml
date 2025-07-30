@@ -1,3 +1,13 @@
+"$schema" = "schemas/schema.json"
+
 [default]
-description = "Default permissions for the plugin"
-permissions = ["allow-ping"]
+description = "Default permissions for the rusqlite plugin."
+permissions = [
+    "allow-load",
+    "allow-execute",
+    "allow-select",
+    "allow-close",
+    "allow-begin-transaction",
+    "allow-commit-transaction",
+    "allow-rollback-transaction",
+]

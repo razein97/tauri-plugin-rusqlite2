@@ -21,7 +21,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bspeckco/tauri-v2-plugin-workspace.git"
+    "url": "git+https://github.com/razein97/tauri-plugin-rusqlite.git"
   },
   "keywords": [
     "tauri-plugin",
@@ -31,19 +31,21 @@
     "rusqlite",
     "database"
   ],
-  "author": "Latn Black ",
+  "authors": [
+    "Tauri Programme within The Commons Conservancy"
+  ],
   "license": "MIT",
   "peerDependencies": {
-    "@tauri-apps/api": "^2.4.1"
+    "@tauri-apps/api": "2.7.0"
   },
   "devDependencies": {
-    "@tauri-apps/api": "^2.4.1",
+    "@tauri-apps/api": "2.7.0",
     "typescript": "^5.0.0"
   },
   "bugs": {
-    "url": "https://github.com/bspeckco/tauri-v2-plugin-workspace/issues"
+    "url": "https://github.com/razein97/tauri-plugin-rusqlite/issues"
   },
-  "homepage": "https://github.com/bspeckco/tauri-v2-plugin-workspace#readme",
+  "homepage": "https://github.com/razein97/tauri-plugin-rusqlite#readme",
   "publishConfig": {
     "access": "public"
   }

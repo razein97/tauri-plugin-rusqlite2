@@ -355,18 +355,6 @@
           "markdownDescription": "Denies the load command without any pre-configured scope."
         },
         {
-          "description": "Enables the ping command without any pre-configured scope.",
-          "type": "string",
-          "const": "allow-ping",
-          "markdownDescription": "Enables the ping command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the ping command without any pre-configured scope.",
-          "type": "string",
-          "const": "deny-ping",
-          "markdownDescription": "Denies the ping command without any pre-configured scope."
-        },
-        {
           "description": "Enables the rollback_transaction command without any pre-configured scope.",
           "type": "string",
           "const": "allow-rollback-transaction",
@@ -391,10 +379,10 @@
           "markdownDescription": "Denies the select command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-ping`",
+          "description": "Default permissions for the rusqlite plugin.\n#### This default permission set includes:\n\n- `allow-load`\n- `allow-execute`\n- `allow-select`\n- `allow-close`\n- `allow-begin-transaction`\n- `allow-commit-transaction`\n- `allow-rollback-transaction`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-ping`"
+          "markdownDescription": "Default permissions for the rusqlite plugin.\n#### This default permission set includes:\n\n- `allow-load`\n- `allow-execute`\n- `allow-select`\n- `allow-close`\n- `allow-begin-transaction`\n- `allow-commit-transaction`\n- `allow-rollback-transaction`"
         }
       ]
     }

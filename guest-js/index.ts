@@ -49,7 +49,7 @@ export default class Database {
    * ```
    */
   static async load(path: string): Promise<Database> {
-    const _path = await invoke<string>('plugin:sql|load', {
+    const _path = await invoke<string>('plugin:rusqlite|load', {
       db: path
     })
 
@@ -116,7 +116,7 @@ export default class Database {
    */
   async execute(query: string, bindValues?: unknown[], txId?: TxId): Promise<QueryResult> {
     const [rowsAffected, lastInsertId] = await invoke<[number, number]>(
-      'plugin:sql|execute',
+      'plugin:rusqlite|execute',
       {
         dbAlias: this.path,
         query,
@@ -158,7 +158,7 @@ export default class Database {
    * ```
    */
   async select<T>(query: string, bindValues?: unknown[], txId?: TxId): Promise<T> {
-    const result = await invoke<T>('plugin:sql|select', {
+    const result = await invoke<T>('plugin:rusqlite|select', {
       dbAlias: this.path,
       query,
       values: bindValues ?? [],
@@ -183,7 +183,7 @@ export default class Database {
    * @param dbPath - The specific database path/alias to close. If omitted, attempts to close the alias associated with this `Database` instance.
    */
   async close(dbPath?: string): Promise<boolean> {
-    const success = await invoke<boolean>('plugin:sql|close', {
+    const success = await invoke<boolean>('plugin:rusqlite|close', {
       db: dbPath ?? this.path // Use provided path or instance path
     })
     return success
@@ -206,7 +206,7 @@ export default class Database {
    * ```
    */
   async beginTransaction(): Promise<TxId> {
-    return await invoke<TxId>('plugin:sql|begin_transaction', {
+    return await invoke<TxId>('plugin:rusqlite|begin_transaction', {
       dbAlias: this.path
     })
   }
@@ -224,7 +224,7 @@ export default class Database {
    * ```
    */
   async commitTransaction(txId: TxId): Promise<void> {
-    await invoke<void>('plugin:sql|commit_transaction', { txId })
+    await invoke<void>('plugin:rusqlite|commit_transaction', { txId })
   }
 
   /**

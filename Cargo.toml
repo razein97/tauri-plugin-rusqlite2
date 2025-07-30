@@ -34,7 +34,14 @@ rusqlite = { version = "0.37.0", features = ["bundled"] }
 indexmap = { version = "2.10.0", features = ["serde"] }
 uuid = { version = "1.17.0", features = ["v4", "serde"] }
 base64 = "0.22.1"
+rusqlite_migration = "2.3.0"
+futures-core = "0.3.31"
+tokio = "1.47.0"
 
 [features]
 default = ["sqlite"]
 sqlite = []
+
+[dev-dependencies]
+tauri = { version = "2.7.0", features = ["test"] }
+tempfile = "3.20.0"                                # Added for file DB tests
