@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-rusqlite"
-version = "2.0.1"
+version = "2.0.0"
 authors = ["Rohit Singh <razein@wizql.com>"]
 description = "Tauri SQLite plugin using rusqlite"
 edition = "2021"
