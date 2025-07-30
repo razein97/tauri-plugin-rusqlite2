@@ -36,17 +36,17 @@ cargo add tauri-plugin-rusqlite2
 
 You can install the JavaScript Guest bindings using your preferred JavaScript package manager:
 
-```sh
-# If you publish your fork's JS package:
-# pnpm add @your-npm-scope/tauri-plugin-rusqlite2-fork
-# or npm add @your-npm-scope/tauri-plugin-rusqlite2-fork
-# or yarn add @your-npm-scope/tauri-plugin-rusqlite2-fork
+Install the JavaScript bindings using your preferred package manager:
 
-# Alternatively, install directly from the JS directory in your fork:
-# (Assuming your fork is checked out locally)
-pnpm add ../path/to/your/fork/tauri-plugin-rusqlite2/guest-js
-# or npm add ../path/to/your/fork/tauri-plugin-rusqlite2/guest-js
-# or yarn add ../path/to/your/fork/tauri-plugin-rusqlite2/guest-js
+```bash
+# Using pnpm
+pnpm add @razein97/tauri-plugin-rusqlite2
+
+# Using npm
+npm install @razein97/tauri-plugin-rusqlite2
+
+# Using yarn
+yarn add @razein97/tauri-plugin-rusqlite2
 ```
 
 ## Usage

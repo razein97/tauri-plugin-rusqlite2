@@ -23,6 +23,14 @@ npm install @razein97/tauri-plugin-rusqlite2
 yarn add @razein97/tauri-plugin-rusqlite2
 ```
 
+### Rust bindings
+
+The install the rust packageusing cargo:
+
+```sh
+cargo add tauri-plugin-rusqlite2
+```
+
 ## Usage
 
 Import the `Database` class and use the `load` method to connect to your SQLite database.
