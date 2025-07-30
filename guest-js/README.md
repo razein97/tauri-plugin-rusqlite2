@@ -2,7 +2,7 @@
 
 This package provides the JavaScript/TypeScript bindings for the `@razein97/tauri-plugin-rusqlite` Tauri plugin.
 
-**Note:** This is a fork of `tauri-plugin-sqlite` by @razein97 which is a fork of the official `tauri-plugin-sql`. It uses `rusqlite` instead of `sqlx`, **supporting only SQLite databases**, and adds explicit transaction support.
+> **Note:** This is a fork of `tauri-plugin-sqlite` by @razein97 which is a fork of the official `tauri-plugin-sql` by @bspeckco. It has been modified to use `rusqlite` instead of `sqlx`, **supporting only SQLite databases**. It adds explicit transaction support (`beginTransaction`, `commitTransaction`, `rollbackTransaction`) and migrations.
 
 ## Installation
 
