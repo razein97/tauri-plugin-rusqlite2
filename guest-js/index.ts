@@ -240,6 +240,28 @@ export default class Database {
    * ```
    */
   async rollbackTransaction(txId: TxId): Promise<void> {
-    await invoke<void>('plugin:sql|rollback_transaction', { txId })
+    await invoke<void>('plugin:rusqlite|rollback_transaction', { txId })
   }
+
+  /**
+ * **Migrate To Version**
+ *
+ * Runs the migrations till the specific migration version defined.
+ *
+ * @param version - The version to migrate to.
+ *
+ * @example
+ * ```ts
+ * await db.migrate(version);
+ * ```
+ */
+  async migrate(version: number): Promise<void> {
+    await invoke<void>('plugin:rusqlite|migrate', { version, db: this.path, })
+  }
+
 }
+
+
+
+
+

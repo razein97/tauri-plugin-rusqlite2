@@ -1,7 +1,7 @@
 [package]
 name = "tauri-plugin-rusqlite"
-version = "2.0.0"
-authors = ["You"]
+version = "2.0.1"
+authors = ["Rohit Singh"]
 description = ""
 edition = "2021"
 rust-version = "1.77.2"

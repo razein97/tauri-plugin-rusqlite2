@@ -10,4 +10,5 @@ permissions = [
     "allow-begin-transaction",
     "allow-commit-transaction",
     "allow-rollback-transaction",
+    "allow-migrate",
 ]

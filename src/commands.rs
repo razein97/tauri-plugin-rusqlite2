@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: MIT
 
 use indexmap::IndexMap;
+use rusqlite_migration::Migrations as RusqliteMigrations;
 use serde_json::Value as JsonValue;
 use tauri::Manager;
-use tauri::{command, AppHandle, Runtime, State}; // Added import for path() method
+use tauri::{command, AppHandle, Runtime, State};
 
 // Updated imports
-use crate::{convert, ConnectionManager, DbInfo, Error, LastInsertId, TransactionManager}; // Removed DbInfo
-use log;
+use crate::{convert, DbInfo, Error, LastInsertId, MigrationList, RusqliteConnections}; // Removed DbInfo
 use rusqlite::Connection; // Removed params_from_iter, Statement
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -17,11 +17,54 @@ use std::sync::{Arc, Mutex}; // Added missing import
 use std::time::Duration;
 use uuid::Uuid;
 
+#[command]
+pub(crate) fn get_conn_url<R: Runtime>(
+    app: AppHandle<R>,
+    db: String,
+) -> Result<PathBuf, crate::Error> {
+    let (kind, path_part) = db
+        .split_once(':')
+        .ok_or_else(|| Error::InvalidDatabaseUrl(db.clone()))?;
+
+    if kind != "sqlite" {
+        return Err(Error::UnsupportedDatabaseType(kind.to_string()));
+    }
+
+    let path = if path_part == ":memory:" {
+        PathBuf::from(":memory:")
+    } else {
+        let base_dir = app
+            .path()
+            .app_data_dir()
+            .map_err(|e| Error::Io(format!("Failed to get app_data_dir: {}", e)))?;
+        let resolved_path = base_dir.join(path_part);
+        if let Some(parent_dir) = resolved_path.parent() {
+            std::fs::create_dir_all(parent_dir)
+                .map_err(|e| Error::Io(format!("Failed to create parent directory: {}", e)))?;
+        }
+        resolved_path
+    };
+
+    // Verify we can open/close a connection, but don't keep it open.
+    // This checks permissions and path validity.
+    Connection::open(&path)
+        .map_err(|e| Error::ConnectionFailed(path.display().to_string(), e.to_string()))?
+        .close()
+        .map_err(|(_, e)| {
+            Error::ConnectionFailed(
+                path.display().to_string(),
+                format!("Failed to close test connection: {}", e),
+            )
+        })?;
+
+    Ok(path)
+}
+
 // Refactored load command
 #[command]
 pub(crate) fn load<R: Runtime>(
     app: AppHandle<R>,
-    connections: State<'_, ConnectionManager>,
+    connections: State<'_, RusqliteConnections<R>>,
     db: String,
 ) -> Result<String, crate::Error> {
     let (kind, path_part) = db
@@ -61,7 +104,7 @@ pub(crate) fn load<R: Runtime>(
 
     // Store DbInfo (path) in the manager
     let db_info = DbInfo { path };
-    let mut connection_map = connections.inner().0.lock().unwrap();
+    let mut connection_map = connections.inner().connections.0.lock().unwrap();
     if connection_map.contains_key(&db) {
         log::warn!(
             "Database alias '{}' already loaded. Overwriting previous info.",
@@ -77,14 +120,15 @@ pub(crate) fn load<R: Runtime>(
 /// name is passed in then _all_ database connection pools will be
 /// shut down.
 #[command]
-pub(crate) fn close(
+pub(crate) fn close<R: Runtime>(
+    _app: AppHandle<R>,
     // Removed async as no async ops needed now
-    connections: State<'_, ConnectionManager>,
+    connections: State<'_, RusqliteConnections<R>>,
     // transactions: State<'_, TransactionManager>, // TODO: Handle open transactions?
     db: Option<String>,
 ) -> Result<bool, crate::Error> {
     // Changed return to match old signature (bool)
-    let mut connection_map = connections.inner().0.lock().unwrap();
+    let mut connection_map = connections.inner().connections.0.lock().unwrap();
 
     let aliases_to_remove = if let Some(db_alias) = db {
         if !connection_map.contains_key(&db_alias) {
@@ -113,14 +157,15 @@ pub(crate) fn close(
 // --- Transaction Commands --- Implementation ---
 
 #[command]
-pub(crate) fn begin_transaction(
-    connections: State<'_, ConnectionManager>,
-    transactions: State<'_, TransactionManager>,
+pub(crate) fn begin_transaction<R: Runtime>(
+    _app: AppHandle<R>,
+    connections: State<'_, RusqliteConnections<R>>,
     db_alias: String,
-) -> Result<String, Error> {
+) -> Result<String, crate::Error> {
     // Get DbInfo from ConnectionManager
     let db_info = connections
         .inner()
+        .connections
         .0
         .lock()
         .unwrap()
@@ -129,7 +174,7 @@ pub(crate) fn begin_transaction(
         .ok_or_else(|| Error::DatabaseNotLoaded(db_alias.clone()))?;
 
     // Open a *new* connection specifically for this transaction
-    let mut tx_conn = Connection::open(&db_info.path)
+    let tx_conn = Connection::open(&db_info.path)
         .map_err(|e| Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string()))?;
 
     // Set busy timeout for this transaction's connection
@@ -146,8 +191,10 @@ pub(crate) fn begin_transaction(
     // Generate ID and store the new connection (wrapped in Arc<Mutex<_>>) in TransactionManager
     let tx_id = Uuid::new_v4();
     let tx_conn_arc = Arc::new(Mutex::new(tx_conn));
-    transactions
+
+    connections
         .inner()
+        .transactions
         .0
         .lock()
         .unwrap()
@@ -157,14 +204,21 @@ pub(crate) fn begin_transaction(
 }
 
 #[command]
-pub(crate) fn commit_transaction(
-    transactions: State<'_, TransactionManager>,
+pub(crate) fn commit_transaction<R: Runtime>(
+    _app: AppHandle<R>,
+    connections: State<'_, RusqliteConnections<R>>,
     tx_id: String,
-) -> Result<(), Error> {
+) -> Result<(), crate::Error> {
     let uuid = Uuid::from_str(&tx_id).map_err(|_| Error::InvalidUuid(tx_id.clone()))?;
 
     // Ensure correct State access
-    let maybe_conn = transactions.inner().0.lock().unwrap().remove(&uuid);
+    let maybe_conn = connections
+        .inner()
+        .transactions
+        .0
+        .lock()
+        .unwrap()
+        .remove(&uuid);
 
     if let Some(arc_mutex_conn) = maybe_conn {
         let conn_guard = arc_mutex_conn.lock().unwrap();
@@ -178,14 +232,21 @@ pub(crate) fn commit_transaction(
 }
 
 #[command]
-pub(crate) fn rollback_transaction(
-    transactions: State<'_, TransactionManager>,
+pub(crate) fn rollback_transaction<R: Runtime>(
+    _app: AppHandle<R>,
+    connections: State<'_, RusqliteConnections<R>>,
     tx_id: String,
-) -> Result<(), Error> {
+) -> Result<(), crate::Error> {
     let uuid = Uuid::from_str(&tx_id).map_err(|_| Error::InvalidUuid(tx_id.clone()))?;
 
     // Ensure correct State access
-    let maybe_conn = transactions.inner().0.lock().unwrap().remove(&uuid);
+    let maybe_conn = connections
+        .inner()
+        .transactions
+        .0
+        .lock()
+        .unwrap()
+        .remove(&uuid);
 
     if let Some(arc_mutex_conn) = maybe_conn {
         let conn_guard = arc_mutex_conn.lock().unwrap();
@@ -203,9 +264,9 @@ pub(crate) fn rollback_transaction(
 
 /// Execute a command against the database
 #[command]
-pub(crate) fn execute(
-    connections: State<'_, ConnectionManager>,
-    transactions: State<'_, TransactionManager>,
+pub(crate) fn execute<R: Runtime>(
+    _app: AppHandle<R>,
+    connections: State<'_, RusqliteConnections<R>>,
     db_alias: String,
     query: String,
     values: Vec<JsonValue>,
@@ -216,7 +277,7 @@ pub(crate) fn execute(
     if let Some(tx_id_str) = tx_id {
         // Transactional execution
         let uuid = Uuid::from_str(&tx_id_str).map_err(|_| Error::InvalidUuid(tx_id_str.clone()))?;
-        let tx_map = transactions.inner().0.lock().unwrap();
+        let tx_map = connections.inner().transactions.0.lock().unwrap();
         let conn_arc = tx_map
             .get(&uuid)
             .cloned()
@@ -233,6 +294,7 @@ pub(crate) fn execute(
         // Non-transactional execution (open, execute, close)
         let db_info = connections
             .inner()
+            .connections
             .0
             .lock()
             .unwrap()
@@ -258,9 +320,9 @@ pub(crate) fn execute(
 }
 
 #[command]
-pub(crate) fn select(
-    connections: State<'_, ConnectionManager>,
-    transactions: State<'_, TransactionManager>,
+pub(crate) fn select<R: Runtime>(
+    _app: AppHandle<R>,
+    connections: State<'_, RusqliteConnections<R>>,
     db_alias: String,
     query: String,
     values: Vec<JsonValue>,
@@ -271,7 +333,7 @@ pub(crate) fn select(
     if let Some(tx_id_str) = tx_id {
         // Transactional select
         let uuid = Uuid::from_str(&tx_id_str).map_err(|_| Error::InvalidUuid(tx_id_str.clone()))?;
-        let tx_map = transactions.inner().0.lock().unwrap();
+        let tx_map = connections.inner().transactions.0.lock().unwrap();
         let conn_arc = tx_map
             .get(&uuid)
             .cloned()
@@ -300,6 +362,7 @@ pub(crate) fn select(
         // Non-transactional select (open, select, close)
         let db_info = connections
             .inner()
+            .connections
             .0
             .lock()
             .unwrap()
@@ -341,4 +404,45 @@ pub(crate) fn select(
         })?;
         Ok(result_vec)
     }
+}
+
+/// Execute a command against the database
+/// db is the database in sqlite:xyz.db
+/// Migrate both up and down using the migration version number
+#[command]
+pub(crate) fn migrate<R: Runtime>(
+    app: AppHandle<R>,
+    connections: State<'_, RusqliteConnections<R>>,
+    version: usize,
+    db: String,
+) -> Result<(), crate::Error> {
+    let db_info = connections
+        .inner()
+        .connections
+        .0
+        .lock()
+        .unwrap()
+        .get(&db)
+        .cloned()
+        .ok_or_else(|| Error::DatabaseNotLoaded(db.clone()))?;
+
+    let mut conn = Connection::open(&db_info.path)
+        .map_err(|e| Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string()))?;
+
+    let migration_list = app.state::<Mutex<MigrationList>>();
+    let mig_list = migration_list.lock().unwrap();
+
+    let resolved_migrations = mig_list.clone().resolve();
+    let migrations = RusqliteMigrations::new(resolved_migrations);
+
+    migrations.to_version(&mut conn, version).unwrap();
+
+    conn.close().map_err(|(_, e)| {
+        Error::ConnectionFailed(
+            db_info.path.display().to_string(),
+            format!("MDQ0NVDT9BZGG: Failed to close connection.{}", e),
+        )
+    })?;
+
+    Ok(())
 }

@@ -47,10 +47,13 @@ if ('__TAURI__' in window) {
             async rollbackTransaction(t) {
                 await e('plugin:rusqlite|rollback_transaction', { txId: t });
             }
+            async migrateToVersion(t) {
+                await e('plugin:rusqlite|migrate', { version: t, db: this.path });
+            }
         }
         return t;
     })();
-    Object.defineProperty(window.__TAURI__, 'sql', {
-        value: __TAURI_PLUGIN_SQL__,
+    Object.defineProperty(window.__TAURI__, 'rusqlite', {
+        value: __TAURI_PLUGIN_RUSQLITE__,
     });
 }

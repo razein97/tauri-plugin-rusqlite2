@@ -11,6 +11,7 @@ Default permissions for the rusqlite plugin.
 - `allow-begin-transaction`
 - `allow-commit-transaction`
 - `allow-rollback-transaction`
+- `allow-migrate`
 
 ## Permission Table
 
@@ -147,6 +148,32 @@ Enables the load command without any pre-configured scope.
 <td>
 
 Denies the load command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`rusqlite:allow-migrate`
+
+</td>
+<td>
+
+Enables the migrate command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`rusqlite:deny-migrate`
+
+</td>
+<td>
+
+Denies the migrate command without any pre-configured scope.
 
 </td>
 </tr>
