@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-rollback-transaction"
+description = "Enables the rollback_transaction command without any pre-configured scope."
+commands.allow = ["rollback_transaction"]
+
+[[permission]]
+identifier = "deny-rollback-transaction"
+description = "Denies the rollback_transaction command without any pre-configured scope."
+commands.deny = ["rollback_transaction"]

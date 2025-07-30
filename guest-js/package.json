@@ -1,0 +1,50 @@
+{
+  "name": "@razein97/tauri-plugin-rusqlite",
+  "version": "2.0.0",
+  "type": "module",
+  "description": "A fork of tauri-plugin-sqlite by @bspeckco using rusqlite, supporting only SQLite with added transaction capabilities.",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bspeckco/tauri-v2-plugin-workspace.git"
+  },
+  "keywords": [
+    "tauri-plugin",
+    "tauri",
+    "sql",
+    "sqlite",
+    "rusqlite",
+    "database"
+  ],
+  "author": "Latn Black ",
+  "license": "MIT",
+  "peerDependencies": {
+    "@tauri-apps/api": "^2.4.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/api": "^2.4.1",
+    "typescript": "^5.0.0"
+  },
+  "bugs": {
+    "url": "https://github.com/bspeckco/tauri-v2-plugin-workspace/issues"
+  },
+  "homepage": "https://github.com/bspeckco/tauri-v2-plugin-workspace#readme",
+  "publishConfig": {
+    "access": "public"
+  }
+}
