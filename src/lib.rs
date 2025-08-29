@@ -122,7 +122,7 @@ impl<R: Runtime> Rusqlite2Connections<R> {
     ///
     /// ```
     ///
-    pub fn load(&self, db: String) -> Result<String, crate::Error> {
+    pub fn load(&self, db: &str) -> Result<String, crate::Error> {
         let connections = self.app.state::<Rusqlite2Connections<R>>();
         crate::commands::load(self.app.clone(), connections, db)
     }
@@ -154,7 +154,7 @@ impl<R: Runtime> Rusqlite2Connections<R> {
     /// ```
     /// let txId:String = app.rusqlite2_connection.begin_transaction().unwrap;
     /// ```
-    pub fn begin_transaction(&self, db: String) -> Result<String, crate::Error> {
+    pub fn begin_transaction(&self, db: &str) -> Result<String, crate::Error> {
         let connections = self.app.state::<Rusqlite2Connections<R>>();
         crate::commands::begin_transaction(self.app.clone(), connections, db)
     }
@@ -167,7 +167,7 @@ impl<R: Runtime> Rusqlite2Connections<R> {
     /// let res = app.rusqlite2_connection.commit_transaction(txId);
     ///```
     ///
-    pub fn commit_transaction(&self, tx_id: String) -> Result<(), crate::Error> {
+    pub fn commit_transaction(&self, tx_id: &str) -> Result<(), crate::Error> {
         let connections = self.app.state::<Rusqlite2Connections<R>>();
         crate::commands::commit_transaction(self.app.clone(), connections, tx_id)
     }
@@ -180,7 +180,7 @@ impl<R: Runtime> Rusqlite2Connections<R> {
     /// ```
     /// let res = app.rusqlite2_connection.rollback_transaction(txId);
     /// ```
-    pub fn rollback_transaction(&self, tx_id: String) -> Result<(), crate::Error> {
+    pub fn rollback_transaction(&self, tx_id: &str) -> Result<(), crate::Error> {
         let connections = self.app.state::<Rusqlite2Connections<R>>();
         crate::commands::rollback_transaction(self.app.clone(), connections, tx_id)
     }
@@ -230,8 +230,8 @@ impl<R: Runtime> Rusqlite2Connections<R> {
     /// ```
     pub fn execute(
         &self,
-        db: String,
-        query: String,
+        db: &str,
+        query: &str,
         values: Vec<JsonValue>,
         tx_id: Option<String>,
     ) -> Result<(u64, LastInsertId), crate::Error> {
@@ -283,8 +283,8 @@ impl<R: Runtime> Rusqlite2Connections<R> {
     /// ```
     pub fn select(
         &self,
-        db: String,
-        query: String,
+        db: &str,
+        query: &str,
         values: Vec<JsonValue>,
         tx_id: Option<String>,
     ) -> Result<Vec<IndexMap<String, JsonValue>>, crate::Error> {
@@ -301,7 +301,7 @@ impl<R: Runtime> Rusqlite2Connections<R> {
     /// ```
     /// app.rusqlite2_connection().migrate(1).expect("Could not migrate database");
     /// ```
-    pub fn migrate(&self, version: usize, db: String) -> Result<(), crate::Error> {
+    pub fn migrate(&self, version: usize, db: &str) -> Result<(), crate::Error> {
         let connections = self.app.state::<Rusqlite2Connections<R>>();
         crate::commands::migrate(self.app.clone(), connections, version, db)
     }
@@ -373,8 +373,8 @@ impl Builder {
                     });
 
                     for db in config.preload {
-                        let conn_url = commands::get_conn_url(app.clone(), db.clone())
-                            .expect("Failed to load DB");
+                        let conn_url =
+                            commands::get_conn_url(app.clone(), &db).expect("Failed to load DB");
 
                         let mut conn = Connection::open(&conn_url).unwrap();
 

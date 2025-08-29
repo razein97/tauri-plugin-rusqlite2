@@ -20,11 +20,11 @@ use uuid::Uuid;
 #[command]
 pub(crate) fn get_conn_url<R: Runtime>(
     app: AppHandle<R>,
-    db: String,
+    db: &str,
 ) -> Result<PathBuf, crate::Error> {
     let (kind, path_part) = db
         .split_once(':')
-        .ok_or_else(|| Error::InvalidDatabaseUrl(db.clone()))?;
+        .ok_or_else(|| Error::InvalidDatabaseUrl(db.to_string()))?;
 
     if kind != "sqlite" {
         return Err(Error::UnsupportedDatabaseType(kind.to_string()));
@@ -65,11 +65,11 @@ pub(crate) fn get_conn_url<R: Runtime>(
 pub(crate) fn load<R: Runtime>(
     app: AppHandle<R>,
     connections: State<'_, Rusqlite2Connections<R>>,
-    db: String,
+    db: &str,
 ) -> Result<String, crate::Error> {
     let (kind, path_part) = db
         .split_once(':')
-        .ok_or_else(|| Error::InvalidDatabaseUrl(db.clone()))?;
+        .ok_or_else(|| Error::InvalidDatabaseUrl(db.to_string()))?;
 
     if kind != "sqlite" {
         return Err(Error::UnsupportedDatabaseType(kind.to_string()));
@@ -105,15 +105,15 @@ pub(crate) fn load<R: Runtime>(
     // Store DbInfo (path) in the manager
     let db_info = DbInfo { path };
     let mut connection_map = connections.inner().connections.0.lock().unwrap();
-    if connection_map.contains_key(&db) {
+    if connection_map.contains_key(db) {
         log::warn!(
             "Database alias '{}' already loaded. Overwriting previous info.",
             db
         );
     }
-    connection_map.insert(db.clone(), db_info);
+    connection_map.insert(db.to_string(), db_info);
 
-    Ok(db)
+    Ok(db.to_string())
 }
 
 /// Allows the database connection(s) to be closed; if no database
@@ -160,7 +160,7 @@ pub(crate) fn close<R: Runtime>(
 pub(crate) fn begin_transaction<R: Runtime>(
     _app: AppHandle<R>,
     connections: State<'_, Rusqlite2Connections<R>>,
-    db_alias: String,
+    db_alias: &str,
 ) -> Result<String, crate::Error> {
     // Get DbInfo from ConnectionManager
     let db_info = connections
@@ -169,9 +169,9 @@ pub(crate) fn begin_transaction<R: Runtime>(
         .0
         .lock()
         .unwrap()
-        .get(&db_alias)
+        .get(db_alias)
         .cloned()
-        .ok_or_else(|| Error::DatabaseNotLoaded(db_alias.clone()))?;
+        .ok_or_else(|| Error::DatabaseNotLoaded(db_alias.to_string()))?;
 
     // Open a *new* connection specifically for this transaction
     let tx_conn = Connection::open(&db_info.path)
@@ -207,9 +207,9 @@ pub(crate) fn begin_transaction<R: Runtime>(
 pub(crate) fn commit_transaction<R: Runtime>(
     _app: AppHandle<R>,
     connections: State<'_, Rusqlite2Connections<R>>,
-    tx_id: String,
+    tx_id: &str,
 ) -> Result<(), crate::Error> {
-    let uuid = Uuid::from_str(&tx_id).map_err(|_| Error::InvalidUuid(tx_id.clone()))?;
+    let uuid = Uuid::from_str(&tx_id).map_err(|_| Error::InvalidUuid(tx_id.to_string()))?;
 
     // Ensure correct State access
     let maybe_conn = connections
@@ -227,7 +227,7 @@ pub(crate) fn commit_transaction<R: Runtime>(
             .map_err(Error::Rusqlite)?;
         Ok(())
     } else {
-        Err(Error::TransactionNotFound(tx_id))
+        Err(Error::TransactionNotFound(tx_id.to_string()))
     }
 }
 
@@ -235,9 +235,9 @@ pub(crate) fn commit_transaction<R: Runtime>(
 pub(crate) fn rollback_transaction<R: Runtime>(
     _app: AppHandle<R>,
     connections: State<'_, Rusqlite2Connections<R>>,
-    tx_id: String,
+    tx_id: &str,
 ) -> Result<(), crate::Error> {
-    let uuid = Uuid::from_str(&tx_id).map_err(|_| Error::InvalidUuid(tx_id.clone()))?;
+    let uuid = Uuid::from_str(&tx_id).map_err(|_| Error::InvalidUuid(tx_id.to_string()))?;
 
     // Ensure correct State access
     let maybe_conn = connections
@@ -256,7 +256,7 @@ pub(crate) fn rollback_transaction<R: Runtime>(
         }
         Ok(())
     } else {
-        Err(Error::TransactionNotFound(tx_id))
+        Err(Error::TransactionNotFound(tx_id.to_string()))
     }
 }
 
@@ -267,8 +267,8 @@ pub(crate) fn rollback_transaction<R: Runtime>(
 pub(crate) fn execute<R: Runtime>(
     _app: AppHandle<R>,
     connections: State<'_, Rusqlite2Connections<R>>,
-    db_alias: String,
-    query: String,
+    db_alias: &str,
+    query: &str,
     values: Vec<JsonValue>,
     tx_id: Option<String>,
 ) -> Result<(u64, LastInsertId), crate::Error> {
@@ -298,9 +298,9 @@ pub(crate) fn execute<R: Runtime>(
             .0
             .lock()
             .unwrap()
-            .get(&db_alias)
+            .get(db_alias)
             .cloned()
-            .ok_or_else(|| Error::DatabaseNotLoaded(db_alias.clone()))?;
+            .ok_or_else(|| Error::DatabaseNotLoaded(db_alias.to_string()))?;
 
         let conn = Connection::open(&db_info.path).map_err(|e| {
             Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string())
@@ -323,8 +323,8 @@ pub(crate) fn execute<R: Runtime>(
 pub(crate) fn select<R: Runtime>(
     _app: AppHandle<R>,
     connections: State<'_, Rusqlite2Connections<R>>,
-    db_alias: String,
-    query: String,
+    db_alias: &str,
+    query: &str,
     values: Vec<JsonValue>,
     tx_id: Option<String>,
 ) -> Result<Vec<IndexMap<String, JsonValue>>, crate::Error> {
@@ -366,9 +366,9 @@ pub(crate) fn select<R: Runtime>(
             .0
             .lock()
             .unwrap()
-            .get(&db_alias)
+            .get(db_alias)
             .cloned()
-            .ok_or_else(|| Error::DatabaseNotLoaded(db_alias.clone()))?;
+            .ok_or_else(|| Error::DatabaseNotLoaded(db_alias.to_string()))?;
 
         let conn = Connection::open(&db_info.path).map_err(|e| {
             Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string())
@@ -414,7 +414,7 @@ pub(crate) fn migrate<R: Runtime>(
     app: AppHandle<R>,
     connections: State<'_, Rusqlite2Connections<R>>,
     version: usize,
-    db: String,
+    db: &str,
 ) -> Result<(), crate::Error> {
     let db_info = connections
         .inner()
@@ -422,9 +422,9 @@ pub(crate) fn migrate<R: Runtime>(
         .0
         .lock()
         .unwrap()
-        .get(&db)
+        .get(db)
         .cloned()
-        .ok_or_else(|| Error::DatabaseNotLoaded(db.clone()))?;
+        .ok_or_else(|| Error::DatabaseNotLoaded(db.to_string()))?;
 
     let mut conn = Connection::open(&db_info.path)
         .map_err(|e| Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string()))?;
