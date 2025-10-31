@@ -2,7 +2,13 @@
 
 This package provides the JavaScript/TypeScript bindings for the `@razein97/tauri-plugin-rusqlite2` Tauri plugin.
 
-> **Note:** This is a fork of `tauri-plugin-sqlite` by @razein97 which is a fork of the official `tauri-plugin-sql` by @bspeckco. It has been modified to use `rusqlite` instead of `sqlx`, **supporting only SQLite databases**. It adds explicit transaction support (`beginTransaction`, `commitTransaction`, `rollbackTransaction`) and migrations.
+> **Note:** This is a fork of `tauri-plugin-sqlite` by @razein97 which is a fork of the official `tauri-plugin-sql` by @bspeckco. It has been modified to use `rusqlite` instead of `sqlx`, **supporting only SQLite databases**.
+
+> It adds:
+>
+> - Transaction support (`beginTransaction`, `commitTransaction`, `rollbackTransaction`)
+> - Migrations
+> - Extensions support
 
 ## Installation
 
@@ -41,7 +47,10 @@ import Database from '@razein97/tauri-plugin-rusqlite2';
 async function initializeDb() {
   try {
     // Load a file-based database (relative to AppData dir)
-    const db = await Database.load('sqlite:my-app-data.db');
+    const db = await Database.load('sqlite:my-app-data.db', [
+      'path/to/ext_1',
+      'path/to/ext_2',
+    ]);
 
     // Or load an in-memory database
     // const db = await Database.load('sqlite::memory:');

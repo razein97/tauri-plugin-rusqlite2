@@ -45,12 +45,13 @@ export default class Database {
    *
    * @example
    * ```ts
-   * const db = await Database.load("sqlite:test.db");
+   * const db = await Database.load("sqlite:test.db", ["path/to/ext_1", "path/to/ext_2"]);
    * ```
    */
-  static async load(path: string): Promise<Database> {
+  static async load(path: string, extensions: string[]): Promise<Database> {
     const _path = await invoke<string>('plugin:rusqlite2|load', {
-      db: path
+      db: path,
+      extensions: extensions
     })
 
     return new Database(_path)

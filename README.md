@@ -1,4 +1,10 @@
-> **Note:** This is a fork of `tauri-plugin-sqlite` by @razein97 which is a fork of the official `tauri-plugin-sql` by @bspeckco. It has been modified to use `rusqlite` instead of `sqlx`, **supporting only SQLite databases**. It adds explicit transaction support (`beginTransaction`, `commitTransaction`, `rollbackTransaction`) and migrations.
+> **Note:** This is a fork of `tauri-plugin-sqlite` by @razein97 which is a fork of the official `tauri-plugin-sql` by @bspeckco. It has been modified to use `rusqlite` instead of `sqlx`, **supporting only SQLite databases**.
+
+> It adds:
+>
+> - Transaction support (`beginTransaction`, `commitTransaction`, `rollbackTransaction`)
+> - Migrations
+> - Extensions support
 
 Interface with SQLite databases using [rusqlite](https://github.com/rusqlite/rusqlite).
 
@@ -74,9 +80,16 @@ Afterwards all the plugin's APIs are available through the JavaScript guest bind
 import Database from '@razein97/tauri-plugin-rusqlite2'; // Or the local path
 
 // sqlite. The path can be relative to `tauri::api::path::BaseDirectory::AppConfig` or absolute.
-const db = await Database.load('sqlite:test.db');
+const db = await Database.load('sqlite:test.db', [
+  'path/to/ext_1',
+  'path/to/ext_2',
+]);
+
 // In-memory database
-const memoryDb = await Database.load('sqlite::memory:');
+const memoryDb = await Database.load('sqlite::memory:', [
+  'path/to/ext_1',
+  'path/to/ext_2',
+]);
 
 await db.execute('INSERT INTO users (name) VALUES (?)', ['Test']);
 const users = await db.select('SELECT * FROM users');
@@ -91,19 +104,19 @@ const users = await db.select('SELECT * FROM users');
 #[tauri::command]
 fn load_database(app: tauri::AppHandle) {
   let db = app.rusqlite2_connection()
-            .load("sqlite:test.db")
+            .load("sqlite:test.db", vec!["path/to/ext_1", "path/to/ext2"])
             .unwrap();
 
 
 let memory_db = app.rusqlite2_connection()
-                .load("sqlite::memory:")
+                .load("sqlite::memory:",vec!["path/to/ext_1", "path/to/ext2"])
                     .unwrap();
 
 let result:Result<(u64, LastInsertId), Error> =
     app.rusqlite2_connection().execute(
         db,
         "INSERT into users (name) VALUES (?)".to_string(),
-        ["BOB"].iter().map(|f| json!(f)).collect(),
+        params![["BOB"].iter().map(|f| f).collect()],
     None,
 );
 
@@ -111,7 +124,7 @@ let result:Result<Vec<IndexMap<String, JsonValue>>, Error> =
     app.rusqlite2_connection().select(
         db,
         "SELECT name from items WHERE owner_id = ?".to_string(),
-        vec![json!(1)],
+        params![1],
     None,
   );
 }
@@ -148,7 +161,7 @@ let result =
     app.rusqlite2_connection().execute(
         db,
         "INSERT into todos (id, title, status) VALUES (?, ?, ?)".to_string(),
-        vec![json!(todos.id), json!(todos.title), json!(todos.status)],
+        params![todos.id, todos.title, todos.status],
     None,
 );
 
@@ -158,7 +171,7 @@ let result =
     app.rusqlite2_connection().execute(
         db,
         "UPDATE todos SET title = ?, status = ? WHERE id = ?".to_string(),
-        vec![json!(todos.id), json!(todos.title), json!(todos.status)],
+        params![todos.id, todos.title, todos.status],
     None,
 );
 
@@ -168,7 +181,7 @@ let result:Result<Vec<IndexMap<String, JsonValue>>, Error> =
      app.rusqlite2_connection().select(
          db,
          "SELECT * from users WHERE name = ?".to_string(),
-         vec![json!("Alice")],
+         params!["Alice"],
      None,
  );
 
@@ -183,7 +196,7 @@ This plugin supports explicit transaction control via the `beginTransaction`, `c
 ```javascript
 import Database from '...'; // Your fork's import
 
-const db = await Database.load('sqlite:my_app_data.db');
+const db = await Database.load('sqlite:my_app_data.db', []);
 
 async function performAtomicUpdate(userId, newName, newItem) {
   let txId = null;
@@ -235,7 +248,7 @@ async function performAtomicUpdate(userId, newName, newItem) {
        .select(
            db,
            "INSERT into items (name, owner_id) VALUES (?, ?)".to_string(),
-           vec![json!("Laptop"), json!(1)],
+           params!["Laptop", 1],
            Some(tx),
        )
        .unwrap();
@@ -321,7 +334,7 @@ Alternatively, the client side `load()` also runs the migrations for a given con
 
 ```ts
 import Database from '@razein97/tauri-plugin-rusqlite2';
-const db = await Database.load('sqlite:mydatabase.db');
+const db = await Database.load('sqlite:mydatabase.db', []);
 ```
 
 ### Rolling back migrations

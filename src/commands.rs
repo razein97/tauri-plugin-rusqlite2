@@ -66,6 +66,7 @@ pub(crate) fn load<R: Runtime>(
     app: AppHandle<R>,
     connections: State<'_, Rusqlite2Connections<R>>,
     db: &str,
+    extensions: Vec<String>,
 ) -> Result<String, crate::Error> {
     let (kind, path_part) = db
         .split_once(':')
@@ -92,18 +93,20 @@ pub(crate) fn load<R: Runtime>(
 
     // Verify we can open/close a connection, but don't keep it open.
     // This checks permissions and path validity.
-    Connection::open(&path)
-        .map_err(|e| Error::ConnectionFailed(path.display().to_string(), e.to_string()))?
-        .close()
-        .map_err(|(_, e)| {
-            Error::ConnectionFailed(
-                path.display().to_string(),
-                format!("Failed to close test connection: {}", e),
-            )
-        })?;
+    let conn = Connection::open(&path)
+        .map_err(|e| Error::ConnectionFailed(path.display().to_string(), e.to_string()))?;
+
+    load_extensions(&conn, &extensions)?;
+
+    conn.close().map_err(|(_, e)| {
+        Error::ConnectionFailed(
+            path.display().to_string(),
+            format!("Failed to close test connection: {}", e),
+        )
+    })?;
 
     // Store DbInfo (path) in the manager
-    let db_info = DbInfo { path };
+    let db_info = DbInfo { path, extensions };
     let mut connection_map = connections.inner().connections.0.lock().unwrap();
     if connection_map.contains_key(db) {
         log::warn!(
@@ -177,6 +180,9 @@ pub(crate) fn begin_transaction<R: Runtime>(
     let tx_conn = Connection::open(&db_info.path)
         .map_err(|e| Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string()))?;
 
+    // Load extensions
+    load_extensions(&tx_conn, &db_info.extensions)?;
+
     // Set busy timeout for this transaction's connection
     tx_conn
         .busy_timeout(Duration::from_millis(5000))
@@ -209,7 +215,7 @@ pub(crate) fn commit_transaction<R: Runtime>(
     connections: State<'_, Rusqlite2Connections<R>>,
     tx_id: &str,
 ) -> Result<(), crate::Error> {
-    let uuid = Uuid::from_str(&tx_id).map_err(|_| Error::InvalidUuid(tx_id.to_string()))?;
+    let uuid = Uuid::from_str(tx_id).map_err(|_| Error::InvalidUuid(tx_id.to_string()))?;
 
     // Ensure correct State access
     let maybe_conn = connections
@@ -237,7 +243,7 @@ pub(crate) fn rollback_transaction<R: Runtime>(
     connections: State<'_, Rusqlite2Connections<R>>,
     tx_id: &str,
 ) -> Result<(), crate::Error> {
-    let uuid = Uuid::from_str(&tx_id).map_err(|_| Error::InvalidUuid(tx_id.to_string()))?;
+    let uuid = Uuid::from_str(tx_id).map_err(|_| Error::InvalidUuid(tx_id.to_string()))?;
 
     // Ensure correct State access
     let maybe_conn = connections
@@ -286,7 +292,7 @@ pub(crate) fn execute<R: Runtime>(
         // Lock the connection and execute
         let conn_guard = conn_arc.lock().unwrap();
         let changes = conn_guard
-            .execute(&query, rusqlite::params_from_iter(converted_params))
+            .execute(query, rusqlite::params_from_iter(converted_params))
             .map_err(Error::Rusqlite)?; // Keep TX open on error
         let last_id = conn_guard.last_insert_rowid();
         Ok((changes as u64, LastInsertId::Sqlite(last_id)))
@@ -305,8 +311,12 @@ pub(crate) fn execute<R: Runtime>(
         let conn = Connection::open(&db_info.path).map_err(|e| {
             Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string())
         })?;
+
+        // Load extensions
+        load_extensions(&conn, &db_info.extensions)?;
+
         let changes = conn
-            .execute(&query, rusqlite::params_from_iter(converted_params))
+            .execute(query, rusqlite::params_from_iter(converted_params))
             .map_err(Error::Rusqlite)?; // Error during non-TX execute
         let last_id = conn.last_insert_rowid();
         conn.close().map_err(|(_, e)| {
@@ -341,7 +351,7 @@ pub(crate) fn select<R: Runtime>(
 
         // Lock the connection and execute select
         let conn_guard = conn_arc.lock().unwrap();
-        let mut stmt = conn_guard.prepare(&query).map_err(Error::Rusqlite)?;
+        let mut stmt = conn_guard.prepare(query).map_err(Error::Rusqlite)?;
         let col_names: Vec<String> = stmt.column_names().into_iter().map(String::from).collect();
         let mut rows = stmt
             .query(rusqlite::params_from_iter(converted_params))
@@ -374,9 +384,11 @@ pub(crate) fn select<R: Runtime>(
             Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string())
         })?;
 
+        load_extensions(&conn, &db_info.extensions)?;
+
         let result_vec = {
             // Create a block to scope stmt and rows
-            let mut stmt = conn.prepare(&query).map_err(Error::Rusqlite)?;
+            let mut stmt = conn.prepare(query).map_err(Error::Rusqlite)?;
             let col_names: Vec<String> =
                 stmt.column_names().into_iter().map(String::from).collect();
             let mut rows = stmt
@@ -445,4 +457,21 @@ pub(crate) fn migrate<R: Runtime>(
     })?;
 
     Ok(())
+}
+
+fn load_extensions(conn: &Connection, extensions: &[String]) -> Result<(), crate::Error> {
+    // Load extensions
+    unsafe {
+        conn.load_extension_enable()
+            .map_err(|e| Error::ExtensionLoadFailed(e.to_string()))?;
+
+        for ext in extensions {
+            let _ = conn.load_extension(ext, None::<&str>);
+        }
+
+        conn.load_extension_disable()
+            .map_err(|e| Error::ExtensionLoadFailed(e.to_string()))?;
+
+        Ok(())
+    }
 }

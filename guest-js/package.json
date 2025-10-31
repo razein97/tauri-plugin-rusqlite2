@@ -1,6 +1,6 @@
 {
   "name": "@razein97/tauri-plugin-rusqlite2",
-  "version": "2.0.3",
+  "version": "2.1.0",
   "type": "module",
   "description": "A fork of tauri-plugin-sqlite by @bspeckco using rusqlite, supporting only SQLite with added transaction capabilities.",
   "module": "dist/index.js",

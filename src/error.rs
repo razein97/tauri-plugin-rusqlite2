@@ -16,7 +16,9 @@ pub enum Error {
     UnsupportedDatabaseType(String),
     #[error("failed to resolve application path")]
     CannotResolvePath,
-    #[error("transaction with id \"{0}\" not found. It may have already been committed or rolled back.")]
+    #[error(
+        "transaction with id \"{0}\" not found. It may have already been committed or rolled back."
+    )]
     TransactionNotFound(String),
     #[error("invalid transaction id format: {0}")]
     InvalidUuid(String),
@@ -26,6 +28,8 @@ pub enum Error {
     ValueConversionError(String),
     #[error("IO error: {0}")]
     Io(String),
+    #[error("Extension load error: {0}")]
+    ExtensionLoadFailed(String),
 }
 
 impl Serialize for Error {

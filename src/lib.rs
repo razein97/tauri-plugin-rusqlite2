@@ -42,6 +42,17 @@ pub enum LastInsertId {
     None,
 }
 
+#[macro_export]
+macro_rules! params {
+    ( $( $x:expr ),* $(,)? ) => {
+        vec![
+            $(
+                serde_json::to_value($x).unwrap_or(serde_json::Value::Null)
+            ),*
+        ]
+    };
+}
+
 // struct Migrations(Mutex<HashMap<String, MigrationList>>);
 
 #[derive(Default, Clone, Deserialize)]
@@ -87,6 +98,7 @@ impl MigrationList {
 #[derive(Clone, Debug)] // Removed Send + Sync from derive
 pub struct DbInfo {
     path: PathBuf,
+    extensions: Vec<String>,
 }
 
 #[derive(Default, Clone)]
@@ -117,14 +129,14 @@ impl<R: Runtime> Rusqlite2Connections<R> {
     /// let app:tauri::AppHandle;
     ///
     /// let db:String = app.rusqlite2_connection()
-    ///      .load("sqlite:test.db".to_string())
+    ///      .load("sqlite:test.db".to_string(), vec!["path/to/ext_1", "path/to/ext_2"])
     ///      .unwrap();
     ///
     /// ```
     ///
-    pub fn load(&self, db: &str) -> Result<String, crate::Error> {
+    pub fn load(&self, db: &str, extensions: Vec<String>) -> Result<String, crate::Error> {
         let connections = self.app.state::<Rusqlite2Connections<R>>();
-        crate::commands::load(self.app.clone(), connections, db)
+        crate::commands::load(self.app.clone(), connections, db, extensions)
     }
 
     ///
@@ -207,7 +219,7 @@ impl<R: Runtime> Rusqlite2Connections<R> {
     ///     app.rusqlite2_connection().execute(
     ///         db,
     ///         "INSERT into users (name) VALUES (?)".to_string(),
-    ///         ["BOB"].iter().map(|f| json!(f)).collect(),
+    ///         params![["BOB"].iter().map(|f| f).collect()],
     ///     None,
     /// );
     ///
@@ -217,7 +229,7 @@ impl<R: Runtime> Rusqlite2Connections<R> {
     /// let txn = app.rusqlite2_connection().execute(
     ///         db,
     ///         "INSERT into items (name, owner_id) VALUES (?, ?)".to_string(),
-    ///         vec![json!("Laptop"), json!(1)],
+    ///         params!["Laptop", 1],
     ///         Some(tx),
     ///     ).unwrap();
     ///
@@ -260,7 +272,7 @@ impl<R: Runtime> Rusqlite2Connections<R> {
     ///     app.rusqlite2_connection().select(
     ///         db,
     ///         "SELECT name from items WHERE owner_id = ?".to_string(),
-    ///         vec![json!(1)],
+    ///         params![1],
     ///     None,
     /// );
     ///
@@ -270,7 +282,7 @@ impl<R: Runtime> Rusqlite2Connections<R> {
     /// let txn:Result<Vec<IndexMap<String, JsonValue>>, Error> = app.rusqlite2_connection().execute(
     ///         db,
     ///         "SELECT name from items WHERE owner_id = ?".to_string(),
-    ///         vec![json!(1)],
+    ///         params![1],
     ///         Some(tx),
     ///    ).unwrap();
     ///
