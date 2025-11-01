@@ -5,6 +5,7 @@
 > - Transaction support (`beginTransaction`, `commitTransaction`, `rollbackTransaction`)
 > - Migrations
 > - Extensions support
+> - SQLCipher support
 
 Interface with SQLite databases using [rusqlite](https://github.com/rusqlite/rusqlite).
 
@@ -55,6 +56,18 @@ npm install @razein97/tauri-plugin-rusqlite2
 yarn add @razein97/tauri-plugin-rusqlite2
 ```
 
+## Extensions
+
+All downloaded extension need to set read, write, executable permission to run on mac or linux.
+
+```shell
+- macos
+chmod 755 path/to/ext.dylib
+
+- linux
+chmod 755 path/to/ext.so
+```
+
 ## Usage
 
 First you need to register the core plugin with Tauri:
@@ -80,7 +93,9 @@ Afterwards all the plugin's APIs are available through the JavaScript guest bind
 import Database from '@razein97/tauri-plugin-rusqlite2'; // Or the local path
 
 // sqlite. The path can be relative to `tauri::api::path::BaseDirectory::AppConfig` or absolute.
-const db = await Database.load('sqlite:test.db', [
+
+//the pass field can be left empty to disable encryption. 'sqlite::test.db'
+const db = await Database.load('sqlite:pass:test.db', [
   'path/to/ext_1',
   'path/to/ext_2',
 ]);
@@ -104,7 +119,7 @@ const users = await db.select('SELECT * FROM users');
 #[tauri::command]
 fn load_database(app: tauri::AppHandle) {
   let db = app.rusqlite2_connection()
-            .load("sqlite:test.db", vec!["path/to/ext_1", "path/to/ext2"])
+            .load("sqlite:pass:test.db", vec!["path/to/ext_1", "path/to/ext2"])
             .unwrap();
 
 
@@ -196,7 +211,7 @@ This plugin supports explicit transaction control via the `beginTransaction`, `c
 ```javascript
 import Database from '...'; // Your fork's import
 
-const db = await Database.load('sqlite:my_app_data.db', []);
+const db = await Database.load('sqlite:pass:test.db', []);
 
 async function performAtomicUpdate(userId, newName, newItem) {
   let txId = null;
@@ -309,7 +324,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(
             tauri_plugin_rusqlite2::Builder::default()
-                .add_migrations("sqlite:mydatabase.db", migrations)
+                .add_migrations("sqlite:pass:test.db", migrations)
                 .build(),
         )
         ...
@@ -324,7 +339,7 @@ To apply the migrations when the plugin is initialized, add the connection strin
 {
   "plugins": {
     "rusqlite2": {
-      "preload": ["sqlite:mydatabase.db"]
+      "preload": ["sqlite:pass:test.db"]
     }
   }
 }
@@ -334,7 +349,7 @@ Alternatively, the client side `load()` also runs the migrations for a given con
 
 ```ts
 import Database from '@razein97/tauri-plugin-rusqlite2';
-const db = await Database.load('sqlite:mydatabase.db', []);
+const db = await Database.load('sqlite:pass:test.db', []);
 ```
 
 ### Rolling back migrations
@@ -362,7 +377,5 @@ Ensure that the migrations are defined in the correct order and are safe to run 
 PRs accepted to the repository. Please make sure to read the Contributing Guide before making a pull request there.
 
 ## License
-
-Code: (c) 2015 - Present - The Tauri Programme within The Commons Conservancy.
 
 MIT or MIT/Apache 2.0 where applicable.

@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-rusqlite2"
-version = "2.1.0"
+version = "2.2.0"
 authors = ["Rohit Singh <razein@wizql.com>"]
 description = "Tauri SQLite plugin using rusqlite"
 edition = "2021"
@@ -9,7 +9,7 @@ rust-version = "1.85"
 keywords = ["tauri-plugin", "tauri", "sql", "sqlite", "rusqlite"]
 repository = "https://github.com/razein97/tauri-plugin-rusqlite2"
 license = "MIT OR Apache-2.0"
-exclude = ["/examples", "/dist-js", "/guest-js", "/node_modules"]
+exclude = ["/examples", "/example", "/dist-js", "/guest-js", "/node_modules"]
 links = "tauri-plugin-rusqlite2"
 
 
@@ -34,7 +34,17 @@ serde = "1"
 thiserror = "2"
 serde_json = "1"
 log = "0.4"
-rusqlite = { version = "0.37", features = ["bundled-full", "load_extension",] }
+rusqlite = { version = "0.37.0", features = [
+    "backup",
+    "load_extension",
+    "bundled-sqlcipher",
+    "bundled-sqlcipher-vendored-openssl",
+    "serde_json",
+    "chrono",
+    "jiff",
+    "url",
+    "time",
+] }
 indexmap = { version = "2", features = ["serde"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 base64 = "0.22"

@@ -1,4 +1,4 @@
-# Tauri Plugin SQLite - JavaScript Bindings (@razein/tauri-plugin-sqlite2)
+# Tauri Plugin SQLite - JavaScript Bindings (@razein/tauri-plugin-rusqlite2)
 
 This package provides the JavaScript/TypeScript bindings for the `@razein97/tauri-plugin-rusqlite2` Tauri plugin.
 
@@ -9,6 +9,7 @@ This package provides the JavaScript/TypeScript bindings for the `@razein97/taur
 > - Transaction support (`beginTransaction`, `commitTransaction`, `rollbackTransaction`)
 > - Migrations
 > - Extensions support
+> - SQLCipher support
 
 ## Installation
 
@@ -47,7 +48,8 @@ import Database from '@razein97/tauri-plugin-rusqlite2';
 async function initializeDb() {
   try {
     // Load a file-based database (relative to AppData dir)
-    const db = await Database.load('sqlite:my-app-data.db', [
+    //to use without encryption leave the middle field empty. eg: 'sqlite::test.db'
+    const db = await Database.load('sqlite:pass:test.db', [
       'path/to/ext_1',
       'path/to/ext_2',
     ]);
@@ -76,6 +78,18 @@ async function initializeDb() {
 }
 
 initializeDb();
+```
+
+### Extensions
+
+All downloaded extension need to set read, write, executable permission to run on mac or linux.
+
+```shell
+- macos
+chmod 755 path/to/ext.dylib
+
+- linux
+chmod 755 path/to/ext.so
 ```
 
 Refer to the [main plugin README](../../README.md) for detailed API documentation, including transaction usage.

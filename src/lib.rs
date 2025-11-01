@@ -99,6 +99,7 @@ impl MigrationList {
 pub struct DbInfo {
     path: PathBuf,
     extensions: Vec<String>,
+    pass: String,
 }
 
 #[derive(Default, Clone)]
@@ -388,7 +389,15 @@ impl Builder {
                         let conn_url =
                             commands::get_conn_url(app.clone(), &db).expect("Failed to load DB");
 
+                        //pass from the dbstring
+                        let split_db_conn: Vec<&str> = db.splitn(3, ':').collect();
+                        let pass = split_db_conn[1];
+
                         let mut conn = Connection::open(&conn_url).unwrap();
+
+                        if !pass.is_empty() {
+                            conn.pragma_update(None, "KEY", pass).unwrap();
+                        }
 
                         if let Some(migrations) =
                             self.migrations.as_mut().and_then(|mm| mm.remove(&db))

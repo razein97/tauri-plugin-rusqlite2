@@ -30,6 +30,9 @@ pub enum Error {
     Io(String),
     #[error("Extension load error: {0}")]
     ExtensionLoadFailed(String),
+
+    #[error("Encryption failed error: {0}")]
+    EncryptionFailed(String),
 }
 
 impl Serialize for Error {

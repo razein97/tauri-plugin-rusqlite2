@@ -22,55 +22,10 @@ pub(crate) fn get_conn_url<R: Runtime>(
     app: AppHandle<R>,
     db: &str,
 ) -> Result<PathBuf, crate::Error> {
-    let (kind, path_part) = db
-        .split_once(':')
-        .ok_or_else(|| Error::InvalidDatabaseUrl(db.to_string()))?;
-
-    if kind != "sqlite" {
-        return Err(Error::UnsupportedDatabaseType(kind.to_string()));
-    }
-
-    let path = if path_part == ":memory:" {
-        PathBuf::from(":memory:")
-    } else {
-        let base_dir = app
-            .path()
-            .app_data_dir()
-            .map_err(|e| Error::Io(format!("Failed to get app_data_dir: {}", e)))?;
-        let resolved_path = base_dir.join(path_part);
-        if let Some(parent_dir) = resolved_path.parent() {
-            std::fs::create_dir_all(parent_dir)
-                .map_err(|e| Error::Io(format!("Failed to create parent directory: {}", e)))?;
-        }
-        resolved_path
-    };
-
-    // Verify we can open/close a connection, but don't keep it open.
-    // This checks permissions and path validity.
-    Connection::open(&path)
-        .map_err(|e| Error::ConnectionFailed(path.display().to_string(), e.to_string()))?
-        .close()
-        .map_err(|(_, e)| {
-            Error::ConnectionFailed(
-                path.display().to_string(),
-                format!("Failed to close test connection: {}", e),
-            )
-        })?;
-
-    Ok(path)
-}
-
-// Refactored load command
-#[command]
-pub(crate) fn load<R: Runtime>(
-    app: AppHandle<R>,
-    connections: State<'_, Rusqlite2Connections<R>>,
-    db: &str,
-    extensions: Vec<String>,
-) -> Result<String, crate::Error> {
-    let (kind, path_part) = db
-        .split_once(':')
-        .ok_or_else(|| Error::InvalidDatabaseUrl(db.to_string()))?;
+    let split_db_conn: Vec<&str> = db.splitn(3, ':').collect();
+    let kind = split_db_conn[0];
+    let pass = split_db_conn[1];
+    let path_part = split_db_conn[2];
 
     if kind != "sqlite" {
         return Err(Error::UnsupportedDatabaseType(kind.to_string()));
@@ -96,6 +51,102 @@ pub(crate) fn load<R: Runtime>(
     let conn = Connection::open(&path)
         .map_err(|e| Error::ConnectionFailed(path.display().to_string(), e.to_string()))?;
 
+    if !pass.is_empty() {
+        let pragma_pass_res = conn.pragma_update(None, "KEY", pass);
+
+        match pragma_pass_res {
+            Ok(_) => {
+                conn.close().map_err(|(_, e)| {
+                    Error::ConnectionFailed(
+                        path.display().to_string(),
+                        format!("Failed to close test connection: {}", e),
+                    )
+                })?;
+
+                Ok(path)
+            }
+            Err(_) => {
+                //Convert plaintext sqlite to encrypted
+                conn.execute(
+                    &format!("ATTACH DATABASE '{path_part}' AS encrypted KEY '{pass}';"),
+                    [],
+                )
+                .map_err(|e| Error::EncryptionFailed(e.to_string()))?;
+
+                conn.execute("SELECT sqlcipher_export('encrypted')", [])
+                    .map_err(|e| Error::EncryptionFailed(e.to_string()))?;
+
+                conn.execute("DETACH DATABASE encrypted;", [])
+                    .map_err(|e| Error::EncryptionFailed(e.to_string()))?;
+
+                conn.close().map_err(|(_, e)| {
+                    Error::ConnectionFailed(
+                        path.display().to_string(),
+                        format!("Failed to close test connection: {}", e),
+                    )
+                })?;
+
+                std::fs::copy(path_part, &path)
+                    .map_err(|e| Error::EncryptionFailed(e.to_string()))?;
+
+                Ok(path)
+            }
+        }
+    } else {
+        conn.close().map_err(|(_, e)| {
+            Error::ConnectionFailed(
+                path.display().to_string(),
+                format!("Failed to close test connection: {}", e),
+            )
+        })?;
+
+        Ok(path)
+    }
+}
+
+// Refactored load command
+#[command]
+pub(crate) fn load<R: Runtime>(
+    app: AppHandle<R>,
+    connections: State<'_, Rusqlite2Connections<R>>,
+    db: &str,
+    extensions: Vec<String>,
+) -> Result<String, crate::Error> {
+    let split_db_conn: Vec<&str> = db.splitn(3, ':').collect();
+    let kind = split_db_conn[0];
+    let pass = split_db_conn[1];
+    let path_part = split_db_conn[2];
+
+    if kind != "sqlite" {
+        return Err(Error::UnsupportedDatabaseType(kind.to_string()));
+    }
+
+    let path = if path_part == ":memory:" {
+        PathBuf::from(":memory:")
+    } else {
+        let base_dir = app
+            .path()
+            .app_data_dir()
+            .map_err(|e| Error::Io(format!("Failed to get app_data_dir: {}", e)))?;
+        let resolved_path = base_dir.join(path_part);
+        if let Some(parent_dir) = resolved_path.parent() {
+            std::fs::create_dir_all(parent_dir)
+                .map_err(|e| Error::Io(format!("Failed to create parent directory: {}", e)))?;
+        }
+        resolved_path
+    };
+
+    // Verify we can open/close a connection, but don't keep it open.
+    // This checks permissions and path validity.
+    let conn = Connection::open(&path)
+        .map_err(|e| Error::ConnectionFailed(path.display().to_string(), e.to_string()))?;
+
+    //do not use pass if it is empty
+    if !pass.is_empty() {
+        conn.pragma_update(None, "KEY", pass)
+            .map_err(|e| Error::ConnectionFailed(path.display().to_string(), e.to_string()))?;
+    }
+
     load_extensions(&conn, &extensions)?;
 
     conn.close().map_err(|(_, e)| {
@@ -106,7 +157,11 @@ pub(crate) fn load<R: Runtime>(
     })?;
 
     // Store DbInfo (path) in the manager
-    let db_info = DbInfo { path, extensions };
+    let db_info = DbInfo {
+        path,
+        extensions,
+        pass: pass.to_string(),
+    };
     let mut connection_map = connections.inner().connections.0.lock().unwrap();
     if connection_map.contains_key(db) {
         log::warn!(
@@ -178,6 +233,10 @@ pub(crate) fn begin_transaction<R: Runtime>(
 
     // Open a *new* connection specifically for this transaction
     let tx_conn = Connection::open(&db_info.path)
+        .map_err(|e| Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string()))?;
+
+    tx_conn
+        .pragma_update(None, "KEY", &db_info.pass)
         .map_err(|e| Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string()))?;
 
     // Load extensions
@@ -312,6 +371,12 @@ pub(crate) fn execute<R: Runtime>(
             Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string())
         })?;
 
+        if !db_info.pass.is_empty() {
+            conn.pragma_update(None, "KEY", db_info.pass).map_err(|e| {
+                Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string())
+            })?;
+        }
+
         // Load extensions
         load_extensions(&conn, &db_info.extensions)?;
 
@@ -384,6 +449,12 @@ pub(crate) fn select<R: Runtime>(
             Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string())
         })?;
 
+        if !db_info.pass.is_empty() {
+            conn.pragma_update(None, "KEY", db_info.pass).map_err(|e| {
+                Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string())
+            })?;
+        }
+
         load_extensions(&conn, &db_info.extensions)?;
 
         let result_vec = {
@@ -441,6 +512,12 @@ pub(crate) fn migrate<R: Runtime>(
     let mut conn = Connection::open(&db_info.path)
         .map_err(|e| Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string()))?;
 
+    if !db_info.pass.is_empty() {
+        conn.pragma_update(None, "KEY", db_info.pass).map_err(|e| {
+            Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string())
+        })?;
+    }
+
     let migration_list = app.state::<Mutex<MigrationList>>();
     let mig_list = migration_list.lock().unwrap();
 
@@ -466,7 +543,9 @@ fn load_extensions(conn: &Connection, extensions: &[String]) -> Result<(), crate
             .map_err(|e| Error::ExtensionLoadFailed(e.to_string()))?;
 
         for ext in extensions {
-            let _ = conn.load_extension(ext, None::<&str>);
+            if let Err(e) = conn.load_extension(ext, None::<&str>) {
+                return Err(Error::ExtensionLoadFailed(e.to_string()));
+            }
         }
 
         conn.load_extension_disable()
