@@ -36,10 +36,7 @@ use tauri::{
 #[derive(Serialize)]
 #[serde(untagged)]
 pub enum LastInsertId {
-    #[cfg(feature = "sqlite")]
     Sqlite(i64),
-    #[cfg(not(feature = "sqlite"))]
-    None,
 }
 
 #[macro_export]
