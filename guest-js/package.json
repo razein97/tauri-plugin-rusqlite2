@@ -32,6 +32,7 @@
     "database"
   ],
   "authors": [
+    "Rohit Singh",
     "Tauri Programme within The Commons Conservancy"
   ],
   "license": "MIT",
@@ -43,7 +44,7 @@
     "typescript": "^5.0.0"
   },
   "bugs": {
-    "url": "https://github.com/razein97/tauri-plugin-rusqlitew/issues"
+    "url": "https://github.com/razein97/tauri-plugin-rusqlite2/issues"
   },
   "homepage": "https://github.com/razein97/tauri-plugin-rusqlite2#readme",
   "publishConfig": {
