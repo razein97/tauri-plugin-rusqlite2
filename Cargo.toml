@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-rusqlite2"
-version = "2.2.2"
+version = "2.2.3"
 authors = ["Rohit Singh <razein@wizql.com>"]
 description = "Tauri SQLite plugin using rusqlite"
 edition = "2021"
@@ -71,6 +71,7 @@ tokio = "1"
 
 
 [features]
-default = ["rusqlite/bundled-sqlcipher", "rusqlite/bundled-sqlcipher-vendored-openssl", "rusqlite/unlock_notify"]
+default = ["rusqlite/bundled-sqlcipher", "rusqlite/unlock_notify"]
 unbundled = ["rusqlite/sqlcipher"]
+bundled-sqlcipher-vendored-openssl = ["rusqlite/bundled-sqlcipher-vendored-openssl",]
 
