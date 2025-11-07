@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use indexmap::IndexMap;
+use log::error;
 use rusqlite_migration::Migrations as RusqliteMigrations;
 use serde_json::Value as JsonValue;
 use tauri::Manager;
@@ -138,40 +139,50 @@ pub(crate) fn load<R: Runtime>(
 
     // Verify we can open/close a connection, but don't keep it open.
     // This checks permissions and path validity.
-    let conn = Connection::open(&path)
-        .map_err(|e| Error::ConnectionFailed(path.display().to_string(), e.to_string()))?;
+    let conn_res = Connection::open(&path);
+    match conn_res {
+        Ok(conn) => {
+            //do not use pass if it is empty
+            if !pass.is_empty() {
+                conn.pragma_update(None, "KEY", pass).map_err(|e| {
+                    Error::ConnectionFailed(path.display().to_string(), e.to_string())
+                })?;
+            }
 
-    //do not use pass if it is empty
-    if !pass.is_empty() {
-        conn.pragma_update(None, "KEY", pass)
-            .map_err(|e| Error::ConnectionFailed(path.display().to_string(), e.to_string()))?;
+            load_extensions(&conn, &extensions)?;
+
+            conn.close().map_err(|(_, e)| {
+                Error::ConnectionFailed(
+                    path.display().to_string(),
+                    format!("Failed to close test connection: {}", e),
+                )
+            })?;
+
+            // Store DbInfo (path) in the manager
+            let db_info = DbInfo {
+                path,
+                extensions,
+                pass: pass.to_string(),
+            };
+            let mut connection_map = connections.inner().connections.0.lock().unwrap();
+            if connection_map.contains_key(db) {
+                log::warn!(
+                    "Database alias '{}' already loaded. Overwriting previous info.",
+                    db
+                );
+            }
+            connection_map.insert(db.to_string(), db_info);
+
+            Ok(db.to_string())
+        }
+        Err(e) => {
+            error!("{e:?}");
+            Err(Error::ConnectionFailed(
+                path.display().to_string(),
+                e.to_string(),
+            ))
+        }
     }
-
-    load_extensions(&conn, &extensions)?;
-
-    conn.close().map_err(|(_, e)| {
-        Error::ConnectionFailed(
-            path.display().to_string(),
-            format!("Failed to close test connection: {}", e),
-        )
-    })?;
-
-    // Store DbInfo (path) in the manager
-    let db_info = DbInfo {
-        path,
-        extensions,
-        pass: pass.to_string(),
-    };
-    let mut connection_map = connections.inner().connections.0.lock().unwrap();
-    if connection_map.contains_key(db) {
-        log::warn!(
-            "Database alias '{}' already loaded. Overwriting previous info.",
-            db
-        );
-    }
-    connection_map.insert(db.to_string(), db_info);
-
-    Ok(db.to_string())
 }
 
 /// Allows the database connection(s) to be closed; if no database
@@ -543,8 +554,10 @@ fn load_extensions(conn: &Connection, extensions: &[String]) -> Result<(), crate
             .map_err(|e| Error::ExtensionLoadFailed(e.to_string()))?;
 
         for ext in extensions {
-            if let Err(e) = conn.load_extension(ext, None::<&str>) {
-                return Err(Error::ExtensionLoadFailed(e.to_string()));
+            if !ext.is_empty() {
+                if let Err(e) = conn.load_extension(ext, None::<&str>) {
+                    return Err(Error::ExtensionLoadFailed(e.to_string()));
+                }
             }
         }
 

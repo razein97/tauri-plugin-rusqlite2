@@ -40,37 +40,13 @@ The package can also be installed by using cargo:
 ```sh
 cargo add tauri-plugin-rusqlite2
 ```
------
-*Features:*
-Use feature `unbundled` to use the system sqlcipher package.
-By default the crate uses the bundled sqlcipher package.
-The reasoning behind this is according to my tests, the bundled package is much slower to the system linked one.
 
-This is based on tests using this query.
-```sql
-WITH RECURSIVE t(n) AS (
-  SELECT 1
-  UNION ALL
-  SELECT n + 1 FROM t WHERE n < 10000000
-)
-SELECT max(n) FROM t;
-```
+---
 
-Normal bundled package runs in 3-4 seconds.
-While the system installed one runs in 1 - 1.5 seconds.
-Tests were conducted on macbook air m2.
+_Features:_
+_All the features are mirrored to rusqlite package_
 
-
-**Using the package**
-- When using `unbundled`, libsqlite3-sys will need to link against crypto libraries on the system. If the build script can find a libcrypto from OpenSSL or LibreSSL (it will consult OPENSSL_LIB_DIR/OPENSSL_INCLUDE_DIR and OPENSSL_DIR environment variables), it will use that. If building on and for Macs, and none of those variables are set, it will use the system's SecurityFramework instead.
-
-- When linking against a SQLite (or SQLCipher) library already on the system (so not using any of the bundled features), you can set the SQLITE3_LIB_DIR (or SQLCIPHER_LIB_DIR) environment variable to point to a directory containing the library. You can also set the SQLITE3_INCLUDE_DIR (or SQLCIPHER_INCLUDE_DIR) variable to point to the directory containing sqlite3.h.
-
-- Installing the sqlite3 development packages will usually be all that is required, but the build helpers for pkg-config and vcpkg have some additional configuration options. The default when using vcpkg is to dynamically link, which must be enabled by setting VCPKGRS_DYNAMIC=1 environment variable before build. vcpkg install sqlite3:x64-windows will install the required library.
-
-- When linking against a SQLite (or SQLCipher) library already on the system, you can set the SQLITE3_STATIC (or SQLCIPHER_STATIC) environment variable to 1 to request that the library be statically instead of dynamically linked.
-
------
+---
 
 You can install the JavaScript Guest bindings using your preferred JavaScript package manager:
 
