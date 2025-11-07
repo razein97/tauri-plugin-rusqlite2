@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-rusqlite2"
-version = "2.2.3"
+version = "2.2.4"
 authors = ["Rohit Singh <razein@wizql.com>"]
 description = "Tauri SQLite plugin using rusqlite"
 edition = "2021"
@@ -34,33 +34,7 @@ serde = "1"
 thiserror = "2"
 serde_json = "1"
 log = "0.4"
-rusqlite = { version = "0.37.0", features = [
-  "array",
-"backup",
-"blob",
-"chrono",
-"collation",
-"column_decltype",
-"column_metadata",
-"csvtab",
-"extra_check",
-"functions",
-"hooks",
-"i128_blob",
-"jiff",
-"limits",
-"load_extension",
-"modern_sqlite",
-"serde_json",
-"serialize",
-"series",
-"time",
-"trace",
-"url",
-"uuid",
-"vtab",
-"window"
-] }
+rusqlite = { version = "0.37", features = [] }
 indexmap = { version = "2", features = ["serde"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 base64 = "0.22"
@@ -69,9 +43,72 @@ futures-core = "0.3"
 tokio = "1"
 
 
-
 [features]
-default = ["rusqlite/bundled-sqlcipher", "rusqlite/unlock_notify"]
-unbundled = ["rusqlite/sqlcipher"]
-bundled-sqlcipher-vendored-openssl = ["rusqlite/bundled-sqlcipher-vendored-openssl",]
 
+default = ["load_extension", "bundled-sqlcipher-vendored-openssl"]
+
+# if not SQLITE_OMIT_LOAD_EXTENSION
+load_extension = ["rusqlite/load_extension"]
+# hot-backup interface: 3.6.11 (2009-02-18)
+backup = ["rusqlite/backup"]
+# if not SQLITE_OMIT_INCRBLOB
+# sqlite3_blob_reopen: 3.7.4
+blob = ["rusqlite/blob"]
+collation = ["rusqlite/collation"]
+# sqlite3_create_function_v2: 3.7.3 (2010-10-08)
+functions = ["rusqlite/functions"]
+# sqlite3_log: 3.6.23 (2010-03-09)
+trace = ["rusqlite/trace"]
+bundled = ["rusqlite/bundled"]
+bundled-sqlcipher = ["rusqlite/bundled-sqlcipher"]
+bundled-sqlcipher-vendored-openssl = [
+  "rusqlite/bundled-sqlcipher-vendored-openssl",
+]
+buildtime_bindgen = ["rusqlite/buildtime_bindgen"]
+limits = ["rusqlite/limits"]
+loadable_extension = ["rusqlite/loadable_extension"]
+hooks = ["rusqlite/hooks"]
+# if SQLITE_ENABLE_PREUPDATE_HOOK
+preupdate_hook = ["rusqlite/preupdate_hook"]
+i128_blob = ["rusqlite/i128_blob"]
+sqlcipher = ["rusqlite/sqlcipher"]
+# SQLITE_ENABLE_UNLOCK_NOTIFY
+unlock_notify = ["rusqlite/unlock_notify"]
+# if not SQLITE_OMIT_VIRTUALTABLE
+# xSavepoint, xRelease and xRollbackTo: 3.7.7 (2011-06-23)
+vtab = ["rusqlite/vtab"]
+csvtab = ["rusqlite/csvtab"]
+# pointer passing interfaces: 3.20.0
+array = ["rusqlite/array"]
+# if SQLITE_ENABLE_SESSION
+# session extension: 3.13.0
+session = ["rusqlite/session"]
+# if not SQLITE_OMIT_WINDOWFUNC
+# window functions: 3.25.0
+window = ["rusqlite/window"]
+# 3.9.0
+series = ["rusqlite/series"]
+# check for invalid query.
+extra_check = ["rusqlite/extra_check"]
+# ]3.14.0, last]
+modern_sqlite = ["rusqlite/modern_sqlite"]
+in_gecko = ["rusqlite/in_gecko"]
+bundled-windows = ["rusqlite/bundled-windows"]
+# Build bundled sqlite with -fsanitize=address
+with-asan = ["rusqlite/with-asan"]
+# if SQLITE_ENABLE_COLUMN_METADATA
+column_metadata = ["rusqlite/column_metadata"]
+# if not SQLITE_OMIT_DECLTYPE
+column_decltype = ["rusqlite/column_decltype"]
+wasm32-wasi-vfs = ["rusqlite/wasm32-wasi-vfs"]
+# if not SQLITE_OMIT_DESERIALIZE
+# 3.23.0
+serialize = ["rusqlite/serialize"]
+
+# Helper feature for enabling most non-build-related optional features
+# or dependencies (except `session`). This is useful for running tests / clippy
+# / etc. New features and optional dependencies that don't conflict with anything
+# else should be added here.
+modern-full = ["rusqlite/modern-full"]
+
+bundled-full = ["rusqlite/bundled-full"]
