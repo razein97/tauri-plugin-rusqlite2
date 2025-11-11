@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-rusqlite2"
-version = "2.2.4"
+version = "2.2.5"
 authors = ["Rohit Singh <razein@wizql.com>"]
 description = "Tauri SQLite plugin using rusqlite"
 edition = "2021"
@@ -54,6 +54,7 @@ backup = ["rusqlite/backup"]
 # if not SQLITE_OMIT_INCRBLOB
 # sqlite3_blob_reopen: 3.7.4
 blob = ["rusqlite/blob"]
+cache = ["rusqlite/cache"]
 collation = ["rusqlite/collation"]
 # sqlite3_create_function_v2: 3.7.3 (2010-10-08)
 functions = ["rusqlite/functions"]
@@ -64,6 +65,7 @@ bundled-sqlcipher = ["rusqlite/bundled-sqlcipher"]
 bundled-sqlcipher-vendored-openssl = [
   "rusqlite/bundled-sqlcipher-vendored-openssl",
 ]
+
 buildtime_bindgen = ["rusqlite/buildtime_bindgen"]
 limits = ["rusqlite/limits"]
 loadable_extension = ["rusqlite/loadable_extension"]
@@ -110,5 +112,10 @@ serialize = ["rusqlite/serialize"]
 # / etc. New features and optional dependencies that don't conflict with anything
 # else should be added here.
 modern-full = ["rusqlite/modern-full"]
-
 bundled-full = ["rusqlite/bundled-full"]
+jiff = ["rusqlite/jiff"]
+chrono = ["rusqlite/chrono"]
+serde_json = ["rusqlite/serde_json"]
+time = ["rusqlite/time"]
+url = ["rusqlite/url"]
+uuid = ["rusqlite/uuid"]
