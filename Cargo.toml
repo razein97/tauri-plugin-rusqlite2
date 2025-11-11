@@ -54,7 +54,7 @@ backup = ["rusqlite/backup"]
 # if not SQLITE_OMIT_INCRBLOB
 # sqlite3_blob_reopen: 3.7.4
 blob = ["rusqlite/blob"]
-cache = ["rusqlite/cache"]
+# cache = ["rusqlite/cache"]
 collation = ["rusqlite/collation"]
 # sqlite3_create_function_v2: 3.7.3 (2010-10-08)
 functions = ["rusqlite/functions"]
@@ -65,7 +65,6 @@ bundled-sqlcipher = ["rusqlite/bundled-sqlcipher"]
 bundled-sqlcipher-vendored-openssl = [
   "rusqlite/bundled-sqlcipher-vendored-openssl",
 ]
-
 buildtime_bindgen = ["rusqlite/buildtime_bindgen"]
 limits = ["rusqlite/limits"]
 loadable_extension = ["rusqlite/loadable_extension"]
