@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-rusqlite2"
-version = "2.2.5"
+version = "2.2.6"
 authors = ["Rohit Singh <razein@wizql.com>"]
 description = "Tauri SQLite plugin using rusqlite"
 edition = "2021"
@@ -33,13 +33,13 @@ tauri = { version = "2" }
 serde = "1"
 thiserror = "2"
 serde_json = "1"
-log = "0.4"
-rusqlite = { version = "0.37", features = [] }
+log = ">=0, <1"
+rusqlite = { version = ">=0, <1", features = [] }
 indexmap = { version = "2", features = ["serde"] }
 uuid = { version = "1", features = ["v4", "serde"] }
-base64 = "0.22"
+base64 = ">=0, <1"
 rusqlite_migration = "2"
-futures-core = "0.3"
+futures-core = ">=0, <1"
 tokio = "1"
 
 
