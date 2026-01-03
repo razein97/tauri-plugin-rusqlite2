@@ -123,7 +123,7 @@ impl<R: Runtime> Rusqlite2Connections<R> {
     /// The path is relative to `tauri::path::BaseDirectory::App` and must start with `sqlite:`.
     ///
     /// @example
-    /// ```
+    /// ```ignore
     /// let app:tauri::AppHandle;
     ///
     /// let db:String = app.rusqlite2_connection()
@@ -138,14 +138,14 @@ impl<R: Runtime> Rusqlite2Connections<R> {
     }
 
     ///
-    ///    ///Removes the database alias association. This prevents new operations
-    ///from being started with this alias until `load` is called again.
-    ///Does not affect currently active transactions, which will continue until
-    ///committed or rolled back.
+    /// Removes the database alias association. This prevents new operations
+    /// from being started with this alias until `load` is called again.
+    /// Does not affect currently active transactions, which will continue until
+    /// committed or rolled back.
     ///
-    ///```
-    ///const success:bool = app.rusqlite2_connection.close().unwrap();
-    ///```
+    /// ```ignore
+    /// const success:bool = app.rusqlite2_connection.close().unwrap();
+    /// ```
     /// * `dbPath` - The specific database path/alias to close. If omitted, attempts to close the alias associated with this `Database` instance.
     ///
     pub fn close(&self, db: Option<String>) -> Result<bool, crate::Error> {
@@ -161,7 +161,7 @@ impl<R: Runtime> Rusqlite2Connections<R> {
     ///
     /// * `returns` -  The transaction identifier string.
     ///
-    /// ```
+    /// ```ignore
     /// let txId:String = app.rusqlite2_connection.begin_transaction().unwrap;
     /// ```
     pub fn begin_transaction(&self, db: &str) -> Result<String, crate::Error> {
@@ -173,7 +173,7 @@ impl<R: Runtime> Rusqlite2Connections<R> {
     /// Commits the transaction identified by `txId`.
     ///  * `txId` - The transaction identifier returned by `beginTransaction`.
     ///
-    ///```
+    ///```ignore
     /// let res = app.rusqlite2_connection.commit_transaction(txId);
     ///```
     ///
@@ -187,7 +187,7 @@ impl<R: Runtime> Rusqlite2Connections<R> {
     ///
     /// * `txId`` - The transaction identifier returned by `begin_transaction`.
     ///
-    /// ```
+    /// ```ignore
     /// let res = app.rusqlite2_connection.rollback_transaction(txId);
     /// ```
     pub fn rollback_transaction(&self, tx_id: &str) -> Result<(), crate::Error> {
@@ -207,7 +207,7 @@ impl<R: Runtime> Rusqlite2Connections<R> {
     /// * `returns` - The query result.
     ///
     ///
-    /// ```rust
+    /// ```ignore
     /// let db:String = app.rusqlite2_connection()
     ///      .load("sqlite:test.db".to_string())
     ///      .unwrap();
@@ -260,7 +260,7 @@ impl<R: Runtime> Rusqlite2Connections<R> {
     /// * `returns` - The selected rows.
     ///
     ///
-    /// ```rust
+    /// ```ignore
     /// let db:String = app.rusqlite2_connection()
     ///      .load("sqlite:test.db".to_string())
     ///      .unwrap();
@@ -308,7 +308,7 @@ impl<R: Runtime> Rusqlite2Connections<R> {
     ///
     /// * `version` - The version to migrate to.
     ///
-    /// ```
+    /// ```ignore
     /// app.rusqlite2_connection().migrate(1).expect("Could not migrate database");
     /// ```
     pub fn migrate(&self, version: usize, db: &str) -> Result<(), crate::Error> {

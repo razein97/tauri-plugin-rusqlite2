@@ -50,9 +50,11 @@ pub(crate) fn rusqlite_value_to_json(value_ref: ValueRef<'_>) -> Result<JsonValu
     Ok(match value_ref {
         ValueRef::Null => JsonValue::Null,
         ValueRef::Integer(i) => JsonValue::Number(i.into()),
-        ValueRef::Real(f) => JsonValue::Number(serde_json::Number::from_f64(f).ok_or_else(|| {
-            Error::ValueConversionError(format!("Cannot convert f64 '{}' to JSON Number", f))
-        })?),
+        ValueRef::Real(f) => {
+            JsonValue::Number(serde_json::Number::from_f64(f).ok_or_else(|| {
+                Error::ValueConversionError(format!("Cannot convert f64 '{}' to JSON Number", f))
+            })?)
+        }
         ValueRef::Text(t) => {
             // Attempt to decode as UTF-8, lossy conversion on error
             JsonValue::String(String::from_utf8_lossy(t).into_owned())
@@ -62,4 +64,4 @@ pub(crate) fn rusqlite_value_to_json(value_ref: ValueRef<'_>) -> Result<JsonValu
             JsonValue::String(BASE64_STANDARD.encode(b))
         }
     })
-} 
+}

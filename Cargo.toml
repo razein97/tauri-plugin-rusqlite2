@@ -42,6 +42,9 @@ rusqlite_migration = "2"
 futures-core = ">=0, <1"
 tokio = "1"
 
+[dev-dependencies]
+tauri = { version = "2", features = ["test"] }
+
 
 [features]
 
