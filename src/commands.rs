@@ -571,3 +571,177 @@ fn load_extensions(conn: &Connection, extensions: &[String]) -> Result<(), crate
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{ConnectionManager, TransactionManager};
+    use serde_json::json;
+    use tauri::test::{mock_builder, mock_context, noop_assets, MockRuntime};
+    use tauri::Manager;
+
+    const MEMORY_DB_ALIAS: &str = "sqlite:::memory:";
+
+    fn setup_test_app() -> tauri::App<MockRuntime> {
+        let assets = noop_assets();
+        let context = mock_context(assets);
+        let app = mock_builder()
+            .build(context)
+            .expect("Failed to build mock app");
+        let handle = app.handle().clone();
+        app.manage(Mutex::new(MigrationList::default()));
+        app.manage(Rusqlite2Connections {
+            app: handle,
+            connections: ConnectionManager::default(),
+            transactions: TransactionManager::default(),
+        });
+        app
+    }
+
+    fn load_memory_db(app: &tauri::App<MockRuntime>) -> String {
+        load(
+            app.handle().clone(),
+            app.state::<Rusqlite2Connections<MockRuntime>>(),
+            MEMORY_DB_ALIAS,
+            Vec::new(),
+        )
+        .expect("Failed to load in-memory database")
+    }
+
+    #[test]
+    fn load_and_close_memory_db() {
+        let app = setup_test_app();
+        let db_alias = load_memory_db(&app);
+
+        {
+            let connections = app.state::<Rusqlite2Connections<MockRuntime>>();
+            let map = connections.connections.0.lock().unwrap();
+            assert!(map.contains_key(&db_alias));
+        }
+
+        let closed = close(
+            app.handle().clone(),
+            app.state::<Rusqlite2Connections<MockRuntime>>(),
+            Some(db_alias.clone()),
+        )
+        .expect("Close should succeed");
+        assert!(closed);
+
+        let connections = app.state::<Rusqlite2Connections<MockRuntime>>();
+        let map = connections.connections.0.lock().unwrap();
+        assert!(!map.contains_key(&db_alias));
+    }
+
+    #[test]
+    fn execute_non_transactional_memory_db() {
+        let app = setup_test_app();
+        let db_alias = load_memory_db(&app);
+
+        let result = execute(
+            app.handle().clone(),
+            app.state::<Rusqlite2Connections<MockRuntime>>(),
+            &db_alias,
+            "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
+            Vec::new(),
+            None,
+        );
+        assert!(result.is_ok(), "Non-TX execute failed: {:?}", result.err());
+    }
+
+    #[test]
+    fn transaction_execute_select_commit_memory_db() {
+        let app = setup_test_app();
+        let db_alias = load_memory_db(&app);
+
+        let tx_id = begin_transaction(
+            app.handle().clone(),
+            app.state::<Rusqlite2Connections<MockRuntime>>(),
+            &db_alias,
+        )
+        .expect("Begin transaction should succeed with empty pass");
+
+        execute(
+            app.handle().clone(),
+            app.state::<Rusqlite2Connections<MockRuntime>>(),
+            &db_alias,
+            "CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)",
+            Vec::new(),
+            Some(tx_id.clone()),
+        )
+        .expect("Create table failed");
+
+        let (changes, _) = execute(
+            app.handle().clone(),
+            app.state::<Rusqlite2Connections<MockRuntime>>(),
+            &db_alias,
+            "INSERT INTO users (name) VALUES (?)",
+            vec![json!("Alice")],
+            Some(tx_id.clone()),
+        )
+        .expect("Insert failed");
+        assert_eq!(changes, 1);
+
+        let rows = select(
+            app.handle().clone(),
+            app.state::<Rusqlite2Connections<MockRuntime>>(),
+            &db_alias,
+            "SELECT id, name FROM users WHERE name = ?",
+            vec![json!("Alice")],
+            Some(tx_id.clone()),
+        )
+        .expect("Select failed");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].get("name"), Some(&json!("Alice")));
+
+        commit_transaction(
+            app.handle().clone(),
+            app.state::<Rusqlite2Connections<MockRuntime>>(),
+            &tx_id,
+        )
+        .expect("Commit should succeed");
+
+        let uuid = Uuid::from_str(&tx_id).expect("Invalid tx id");
+        let connections = app.state::<Rusqlite2Connections<MockRuntime>>();
+        let tx_map = connections.transactions.0.lock().unwrap();
+        assert!(!tx_map.contains_key(&uuid));
+    }
+
+    #[test]
+    fn rollback_transaction_memory_db() {
+        let app = setup_test_app();
+        let db_alias = load_memory_db(&app);
+
+        let tx_id = begin_transaction(
+            app.handle().clone(),
+            app.state::<Rusqlite2Connections<MockRuntime>>(),
+            &db_alias,
+        )
+        .expect("Begin transaction should succeed");
+
+        rollback_transaction(
+            app.handle().clone(),
+            app.state::<Rusqlite2Connections<MockRuntime>>(),
+            &tx_id,
+        )
+        .expect("Rollback should succeed");
+
+        let uuid = Uuid::from_str(&tx_id).expect("Invalid tx id");
+        let connections = app.state::<Rusqlite2Connections<MockRuntime>>();
+        let tx_map = connections.transactions.0.lock().unwrap();
+        assert!(!tx_map.contains_key(&uuid));
+    }
+
+    #[test]
+    fn migrate_memory_db() {
+        let app = setup_test_app();
+        let db_alias = load_memory_db(&app);
+
+        migrate(
+            app.handle().clone(),
+            app.state::<Rusqlite2Connections<MockRuntime>>(),
+            0,
+            &db_alias,
+        )
+        .expect("Migrate should succeed with empty migration list");
+    }
+}
