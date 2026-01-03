@@ -246,9 +246,13 @@ pub(crate) fn begin_transaction<R: Runtime>(
     let tx_conn = Connection::open(&db_info.path)
         .map_err(|e| Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string()))?;
 
-    tx_conn
-        .pragma_update(None, "KEY", &db_info.pass)
-        .map_err(|e| Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string()))?;
+    if !db_info.pass.is_empty() {
+        tx_conn
+            .pragma_update(None, "KEY", &db_info.pass)
+            .map_err(|e| {
+                Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string())
+            })?;
+    }
 
     // Load extensions
     load_extensions(&tx_conn, &db_info.extensions)?;
