@@ -33,6 +33,9 @@ pub enum Error {
 
     #[error("Encryption failed error: {0}")]
     EncryptionFailed(String),
+
+    #[error("Mutex lock poisoned: {0}")]
+    LockPoisoned(String),
 }
 
 impl Serialize for Error {

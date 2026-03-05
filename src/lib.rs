@@ -12,6 +12,7 @@
 mod commands;
 mod convert;
 mod error;
+mod utils;
 
 use indexmap::IndexMap;
 use rusqlite::Connection;
@@ -20,9 +21,9 @@ use serde_json::Value as JsonValue;
 use tauri::AppHandle;
 
 use std::collections::HashMap;
-use std::path::PathBuf; // Added import
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use uuid::Uuid; // Added
+use uuid::Uuid;
 
 pub use error::Error;
 
@@ -32,6 +33,8 @@ use tauri::{
     plugin::{Builder as PluginBuilder, TauriPlugin},
     Manager, Runtime,
 };
+
+use crate::utils::lock_mutex;
 
 #[derive(Serialize)]
 #[serde(untagged)]
@@ -44,7 +47,7 @@ macro_rules! params {
     ( $( $x:expr ),* $(,)? ) => {
         vec![
             $(
-                serde_json::to_value($x).unwrap_or(serde_json::Value::Null)
+                serde_json::json!($x)
             ),*
         ]
     };
@@ -103,16 +106,32 @@ pub struct DbInfo {
 // Revert ConnectionManager to hold DbInfo
 pub struct ConnectionManager(pub Arc<Mutex<HashMap<String, DbInfo>>>);
 
+//Connection pool
+#[derive(Default, Clone)]
+pub struct ConnectionPool(pub Arc<Mutex<HashMap<String, Arc<Mutex<Connection>>>>>);
+
 #[derive(Default, Clone)]
 pub struct TransactionManager(pub Arc<Mutex<HashMap<Uuid, Arc<Mutex<rusqlite::Connection>>>>>);
 #[derive(Clone)]
 pub struct Rusqlite2Connections<R: Runtime> {
     pub app: AppHandle<R>,
     pub connections: ConnectionManager,
+    pub pool: ConnectionPool,
     pub transactions: TransactionManager,
 }
 
 impl<R: Runtime> Rusqlite2Connections<R> {
+    ///Get a raw connection to run queries
+    pub fn get_conn(&self, db_alias: &str) -> Result<Arc<Mutex<Connection>>, crate::Error> {
+        let pool = lock_mutex(&self.pool.0, "ConnectionManager")?;
+
+        if let Some(conn) = pool.get(db_alias) {
+            return Ok(conn.clone());
+        } else {
+            Err(Error::DatabaseNotLoaded(db_alias.to_string()))
+        }
+    }
+
     ///
     ///
     /// A static initializer which connects to the underlying database and
@@ -379,6 +398,7 @@ impl Builder {
                     app.manage(Rusqlite2Connections {
                         app: app.clone(),
                         connections: ConnectionManager::default(),
+                        pool: ConnectionPool::default(),
                         transactions: TransactionManager::default(),
                     });
 

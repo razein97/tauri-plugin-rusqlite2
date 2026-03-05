@@ -9,6 +9,7 @@ use serde_json::Value as JsonValue;
 use tauri::Manager;
 use tauri::{command, AppHandle, Runtime, State};
 
+use crate::utils::lock_mutex;
 // Updated imports
 use crate::{convert, DbInfo, Error, LastInsertId, MigrationList, Rusqlite2Connections}; // Removed DbInfo
 use rusqlite::Connection; // Removed params_from_iter, Statement
@@ -17,6 +18,48 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex}; // Added missing import
 use std::time::Duration;
 use uuid::Uuid;
+
+/// Opens and configures a brand-new `Connection` from a `DbInfo`.
+/// Used by `begin_transaction` and `migrate` which need their own dedicated connection.
+fn open_configured_conn(db_info: &DbInfo) -> Result<Connection, crate::Error> {
+    let conn = Connection::open(&db_info.path)
+        .map_err(|e| Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string()))?;
+
+    if !db_info.pass.is_empty() {
+        conn.pragma_update(None, "KEY", &db_info.pass)
+            .map_err(|e| {
+                Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string())
+            })?;
+    }
+
+    load_extensions(&conn, &db_info.extensions)?;
+
+    conn.busy_timeout(Duration::from_millis(5000))
+        .map_err(Error::Rusqlite)?;
+
+    Ok(conn)
+}
+
+fn load_extensions(conn: &Connection, extensions: &[String]) -> Result<(), crate::Error> {
+    // Load extensions
+    unsafe {
+        conn.load_extension_enable()
+            .map_err(|e| Error::ExtensionLoadFailed(e.to_string()))?;
+
+        for ext in extensions {
+            if !ext.is_empty() {
+                if let Err(e) = conn.load_extension(ext, None::<&str>) {
+                    return Err(Error::ExtensionLoadFailed(e.to_string()));
+                }
+            }
+        }
+
+        conn.load_extension_disable()
+            .map_err(|e| Error::ExtensionLoadFailed(e.to_string()))?;
+
+        Ok(())
+    }
+}
 
 #[command]
 pub(crate) fn get_conn_url<R: Runtime>(
@@ -137,52 +180,39 @@ pub(crate) fn load<R: Runtime>(
         resolved_path
     };
 
-    // Verify we can open/close a connection, but don't keep it open.
-    // This checks permissions and path validity.
-    let conn_res = Connection::open(&path);
-    match conn_res {
-        Ok(conn) => {
-            //do not use pass if it is empty
-            if !pass.is_empty() {
-                conn.pragma_update(None, "KEY", pass).map_err(|e| {
-                    Error::ConnectionFailed(path.display().to_string(), e.to_string())
-                })?;
-            }
+    let db_info = DbInfo {
+        path: path.clone(),
+        extensions: extensions.clone(),
+        pass: pass.to_string(),
+    };
 
-            load_extensions(&conn, &extensions)?;
+    // Open, configure and keep the connection — this becomes the pool entry.
+    // open_configured_conn validates pass, loads extensions, sets busy timeout.
+    let conn = open_configured_conn(&db_info).map_err(|e| {
+        error!("{e:?}");
+        e
+    })?;
+    let conn_arc = Arc::new(Mutex::new(conn));
 
-            conn.close().map_err(|(_, e)| {
-                Error::ConnectionFailed(
-                    path.display().to_string(),
-                    format!("Failed to close test connection: {}", e),
-                )
-            })?;
-
-            // Store DbInfo (path) in the manager
-            let db_info = DbInfo {
-                path,
-                extensions,
-                pass: pass.to_string(),
-            };
-            let mut connection_map = connections.inner().connections.0.lock().unwrap();
-            if connection_map.contains_key(db) {
-                log::warn!(
-                    "Database alias '{}' already loaded. Overwriting previous info.",
-                    db
-                );
-            }
-            connection_map.insert(db.to_string(), db_info);
-
-            Ok(db.to_string())
+    // Store DbInfo and insert the live connection into the pool.
+    // If the alias was already loaded the old pool Arc is dropped here,
+    // which closes the previous connection once no other thread holds it.
+    {
+        let mut connection_map = connections.inner().connections.0.lock().unwrap();
+        if connection_map.contains_key(db) {
+            log::warn!("Database alias '{}' already loaded. Overwriting.", db);
         }
-        Err(e) => {
-            error!("{e:?}");
-            Err(Error::ConnectionFailed(
-                path.display().to_string(),
-                e.to_string(),
-            ))
-        }
+        connection_map.insert(db.to_string(), db_info);
     }
+    connections
+        .inner()
+        .pool
+        .0
+        .lock()
+        .unwrap()
+        .insert(db.to_string(), conn_arc);
+
+    Ok(db.to_string())
 }
 
 /// Allows the database connection(s) to be closed; if no database
@@ -197,7 +227,9 @@ pub(crate) fn close<R: Runtime>(
     db: Option<String>,
 ) -> Result<bool, crate::Error> {
     // Changed return to match old signature (bool)
-    let mut connection_map = connections.inner().connections.0.lock().unwrap();
+    let mut connection_map = lock_mutex(&connections.inner().connections.0, "ConnectionManager")?;
+
+    let mut pool = lock_mutex(&connections.inner().pool.0, "ConnectionManager")?;
 
     let aliases_to_remove = if let Some(db_alias) = db {
         if !connection_map.contains_key(&db_alias) {
@@ -211,13 +243,14 @@ pub(crate) fn close<R: Runtime>(
     };
 
     for alias in aliases_to_remove {
-        connection_map.remove(&alias);
         // Remove the alias from the connection manager.
         // Note: This does not affect active transactions associated with this alias.
         // Active transactions hold their own connection Arc and will continue until
         // commit or rollback. The connection is closed when the Arc count drops to 0.
         // Attempting to start *new* operations (load, execute, select, begin_transaction)
         // with this alias will fail until it is loaded again.
+        connection_map.remove(&alias);
+        pool.remove(&alias);
     }
 
     Ok(true)
@@ -242,25 +275,8 @@ pub(crate) fn begin_transaction<R: Runtime>(
         .cloned()
         .ok_or_else(|| Error::DatabaseNotLoaded(db_alias.to_string()))?;
 
-    // Open a *new* connection specifically for this transaction
-    let tx_conn = Connection::open(&db_info.path)
-        .map_err(|e| Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string()))?;
-
-    if !db_info.pass.is_empty() {
-        tx_conn
-            .pragma_update(None, "KEY", &db_info.pass)
-            .map_err(|e| {
-                Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string())
-            })?;
-    }
-
-    // Load extensions
-    load_extensions(&tx_conn, &db_info.extensions)?;
-
-    // Set busy timeout for this transaction's connection
-    tx_conn
-        .busy_timeout(Duration::from_millis(5000))
-        .map_err(Error::Rusqlite)?;
+    // Transactions always get their own dedicated connection
+    let tx_conn = open_configured_conn(&db_info)?;
 
     // Begin the transaction on the new connection
     // Use IMMEDIATE (default behavior, allows concurrent reads until first write)
@@ -270,15 +286,13 @@ pub(crate) fn begin_transaction<R: Runtime>(
 
     // Generate ID and store the new connection (wrapped in Arc<Mutex<_>>) in TransactionManager
     let tx_id = Uuid::new_v4();
-    let tx_conn_arc = Arc::new(Mutex::new(tx_conn));
-
     connections
         .inner()
         .transactions
         .0
         .lock()
         .unwrap()
-        .insert(tx_id, tx_conn_arc);
+        .insert(tx_id, Arc::new(Mutex::new(tx_conn)));
 
     Ok(tx_id.to_string())
 }
@@ -300,14 +314,13 @@ pub(crate) fn commit_transaction<R: Runtime>(
         .unwrap()
         .remove(&uuid);
 
-    if let Some(arc_mutex_conn) = maybe_conn {
-        let conn_guard = arc_mutex_conn.lock().unwrap();
-        conn_guard
+    match maybe_conn {
+        Some(conn_arc) => conn_arc
+            .lock()
+            .unwrap()
             .execute_batch("COMMIT")
-            .map_err(Error::Rusqlite)?;
-        Ok(())
-    } else {
-        Err(Error::TransactionNotFound(tx_id.to_string()))
+            .map_err(Error::Rusqlite),
+        None => Err(Error::TransactionNotFound(tx_id.to_string())),
     }
 }
 
@@ -328,15 +341,14 @@ pub(crate) fn rollback_transaction<R: Runtime>(
         .unwrap()
         .remove(&uuid);
 
-    if let Some(arc_mutex_conn) = maybe_conn {
-        let conn_guard = arc_mutex_conn.lock().unwrap();
-        // Log rollback errors but don't propagate them as the transaction state is cleared anyway
-        if let Err(e) = conn_guard.execute_batch("ROLLBACK") {
-            log::error!("Error rolling back transaction {}: {}", tx_id, e);
+    match maybe_conn {
+        Some(conn_arc) => {
+            if let Err(e) = lock_mutex(&conn_arc, "ConnectionManager")?.execute_batch("ROLLBACK") {
+                log::error!("Error rolling back transaction {}: {}", tx_id, e);
+            }
+            Ok(())
         }
-        Ok(())
-    } else {
-        Err(Error::TransactionNotFound(tx_id.to_string()))
+        None => Err(Error::TransactionNotFound(tx_id.to_string())),
     }
 }
 
@@ -355,56 +367,28 @@ pub(crate) fn execute<R: Runtime>(
     let converted_params = convert::json_to_rusqlite_params(values)?;
 
     if let Some(tx_id_str) = tx_id {
-        // Transactional execution
+        // --- transactional path: use the transaction's dedicated connection ---
         let uuid = Uuid::from_str(&tx_id_str).map_err(|_| Error::InvalidUuid(tx_id_str.clone()))?;
-        let tx_map = connections.inner().transactions.0.lock().unwrap();
+        let tx_map = lock_mutex(&connections.inner().transactions.0, "ConnectionManager")?;
         let conn_arc = tx_map
             .get(&uuid)
             .cloned()
             .ok_or_else(|| Error::TransactionNotFound(tx_id_str))?;
 
-        // Lock the connection and execute
-        let conn_guard = conn_arc.lock().unwrap();
-        let changes = conn_guard
-            .execute(query, rusqlite::params_from_iter(converted_params))
-            .map_err(Error::Rusqlite)?; // Keep TX open on error
-        let last_id = conn_guard.last_insert_rowid();
-        Ok((changes as u64, LastInsertId::Sqlite(last_id)))
-    } else {
-        // Non-transactional execution (open, execute, close)
-        let db_info = connections
-            .inner()
-            .connections
-            .0
-            .lock()
-            .unwrap()
-            .get(db_alias)
-            .cloned()
-            .ok_or_else(|| Error::DatabaseNotLoaded(db_alias.to_string()))?;
-
-        let conn = Connection::open(&db_info.path).map_err(|e| {
-            Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string())
-        })?;
-
-        if !db_info.pass.is_empty() {
-            conn.pragma_update(None, "KEY", db_info.pass).map_err(|e| {
-                Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string())
-            })?;
-        }
-
-        // Load extensions
-        load_extensions(&conn, &db_info.extensions)?;
-
+        let conn = lock_mutex(&conn_arc, "ConnectionManager")?;
         let changes = conn
             .execute(query, rusqlite::params_from_iter(converted_params))
-            .map_err(Error::Rusqlite)?; // Error during non-TX execute
+            .map_err(Error::Rusqlite)?;
         let last_id = conn.last_insert_rowid();
-        conn.close().map_err(|(_, e)| {
-            Error::ConnectionFailed(
-                db_info.path.display().to_string(),
-                format!("Failed to close connection after non-TX execute: {}", e),
-            )
-        })?;
+        Ok((changes as u64, LastInsertId::Sqlite(last_id)))
+    } else {
+        // --- non-transactional path: use the pooled persistent connection ---
+        let conn_arc = connections.inner().get_conn(db_alias)?;
+        let conn = lock_mutex(&conn_arc, "ConnectionManager")?;
+        let changes = conn
+            .execute(query, rusqlite::params_from_iter(converted_params))
+            .map_err(Error::Rusqlite)?;
+        let last_id = conn.last_insert_rowid();
         Ok((changes as u64, LastInsertId::Sqlite(last_id)))
     }
 }
@@ -421,87 +405,48 @@ pub(crate) fn select<R: Runtime>(
     let converted_params = convert::json_to_rusqlite_params(values)?;
 
     if let Some(tx_id_str) = tx_id {
-        // Transactional select
+        // --- transactional path ---
         let uuid = Uuid::from_str(&tx_id_str).map_err(|_| Error::InvalidUuid(tx_id_str.clone()))?;
-        let tx_map = connections.inner().transactions.0.lock().unwrap();
+        let tx_map = lock_mutex(&connections.inner().transactions.0, "ConnectionManager")?;
+
         let conn_arc = tx_map
             .get(&uuid)
             .cloned()
             .ok_or_else(|| Error::TransactionNotFound(tx_id_str))?;
 
-        // Lock the connection and execute select
-        let conn_guard = conn_arc.lock().unwrap();
-        let mut stmt = conn_guard.prepare(query).map_err(Error::Rusqlite)?;
-        let col_names: Vec<String> = stmt.column_names().into_iter().map(String::from).collect();
-        let mut rows = stmt
-            .query(rusqlite::params_from_iter(converted_params))
-            .map_err(Error::Rusqlite)?;
-
-        let mut result_vec = Vec::new();
-        while let Some(row) = rows.next().map_err(Error::Rusqlite)? {
-            let mut row_map = IndexMap::new();
-            for (i, col_name) in col_names.iter().enumerate() {
-                let value_ref = row.get_ref(i).map_err(Error::Rusqlite)?;
-                let value_json = convert::rusqlite_value_to_json(value_ref)?;
-                row_map.insert(col_name.clone(), value_json);
-            }
-            result_vec.push(row_map);
-        }
-        Ok(result_vec)
+        let conn = lock_mutex(&conn_arc, "ConnectionManager")?;
+        query_rows(&conn, query, converted_params)
     } else {
-        // Non-transactional select (open, select, close)
-        let db_info = connections
-            .inner()
-            .connections
-            .0
-            .lock()
-            .unwrap()
-            .get(db_alias)
-            .cloned()
-            .ok_or_else(|| Error::DatabaseNotLoaded(db_alias.to_string()))?;
+        // --- non-transactional path: use the pooled persistent connection ---
+        let conn_arc = connections.inner().get_conn(db_alias)?;
+        let conn = lock_mutex(&conn_arc, "ConnectionManager")?;
 
-        let conn = Connection::open(&db_info.path).map_err(|e| {
-            Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string())
-        })?;
-
-        if !db_info.pass.is_empty() {
-            conn.pragma_update(None, "KEY", db_info.pass).map_err(|e| {
-                Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string())
-            })?;
-        }
-
-        load_extensions(&conn, &db_info.extensions)?;
-
-        let result_vec = {
-            // Create a block to scope stmt and rows
-            let mut stmt = conn.prepare(query).map_err(Error::Rusqlite)?;
-            let col_names: Vec<String> =
-                stmt.column_names().into_iter().map(String::from).collect();
-            let mut rows = stmt
-                .query(rusqlite::params_from_iter(converted_params))
-                .map_err(Error::Rusqlite)?;
-
-            let mut results = Vec::new();
-            while let Some(row) = rows.next().map_err(Error::Rusqlite)? {
-                let mut row_map = IndexMap::new();
-                for (i, col_name) in col_names.iter().enumerate() {
-                    let value_ref = row.get_ref(i).map_err(Error::Rusqlite)?;
-                    let value_json = convert::rusqlite_value_to_json(value_ref)?;
-                    row_map.insert(col_name.clone(), value_json);
-                }
-                results.push(row_map);
-            }
-            results // Return results from the block
-        }; // stmt and rows are dropped here
-
-        conn.close().map_err(|(_, e)| {
-            Error::ConnectionFailed(
-                db_info.path.display().to_string(),
-                format!("Failed to close connection after non-TX select: {}", e),
-            )
-        })?;
-        Ok(result_vec)
+        query_rows(&conn, query, converted_params)
     }
+}
+
+fn query_rows(
+    conn: &Connection,
+    query: &str,
+    params: Vec<Box<dyn rusqlite::ToSql>>,
+) -> Result<Vec<IndexMap<String, JsonValue>>, crate::Error> {
+    let mut stmt = conn.prepare(query).map_err(Error::Rusqlite)?;
+    let col_names: Vec<String> = stmt.column_names().into_iter().map(String::from).collect();
+    let mut rows = stmt
+        .query(rusqlite::params_from_iter(params))
+        .map_err(Error::Rusqlite)?;
+
+    let mut results = Vec::new();
+    while let Some(row) = rows.next().map_err(Error::Rusqlite)? {
+        let mut row_map = IndexMap::new();
+        for (i, col_name) in col_names.iter().enumerate() {
+            let value_ref = row.get_ref(i).map_err(Error::Rusqlite)?;
+            let value_json = convert::rusqlite_value_to_json(value_ref)?;
+            row_map.insert(col_name.clone(), value_json);
+        }
+        results.push(row_map);
+    }
+    Ok(results)
 }
 
 /// Execute a command against the database
@@ -524,17 +469,11 @@ pub(crate) fn migrate<R: Runtime>(
         .cloned()
         .ok_or_else(|| Error::DatabaseNotLoaded(db.to_string()))?;
 
-    let mut conn = Connection::open(&db_info.path)
-        .map_err(|e| Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string()))?;
-
-    if !db_info.pass.is_empty() {
-        conn.pragma_update(None, "KEY", db_info.pass).map_err(|e| {
-            Error::ConnectionFailed(db_info.path.display().to_string(), e.to_string())
-        })?;
-    }
+    // Migrations need exclusive access, so use a fresh dedicated connection
+    let mut conn = open_configured_conn(&db_info)?;
 
     let migration_list = app.state::<Mutex<MigrationList>>();
-    let mig_list = migration_list.lock().unwrap();
+    let mig_list = lock_mutex(&migration_list, "MigrationManager")?;
 
     let resolved_migrations = mig_list.clone().resolve();
     let migrations = RusqliteMigrations::new(resolved_migrations);
@@ -544,38 +483,20 @@ pub(crate) fn migrate<R: Runtime>(
     conn.close().map_err(|(_, e)| {
         Error::ConnectionFailed(
             db_info.path.display().to_string(),
-            format!("MDQ0NVDT9BZGG: Failed to close connection.{}", e),
+            format!("Failed to close migration connection: {}", e),
         )
     })?;
 
+    // Evict the pool connection so the next query sees the migrated schema
+    lock_mutex(&connections.inner().pool.0, "ConnectionManager")?.remove(db);
+
     Ok(())
-}
-
-fn load_extensions(conn: &Connection, extensions: &[String]) -> Result<(), crate::Error> {
-    // Load extensions
-    unsafe {
-        conn.load_extension_enable()
-            .map_err(|e| Error::ExtensionLoadFailed(e.to_string()))?;
-
-        for ext in extensions {
-            if !ext.is_empty() {
-                if let Err(e) = conn.load_extension(ext, None::<&str>) {
-                    return Err(Error::ExtensionLoadFailed(e.to_string()));
-                }
-            }
-        }
-
-        conn.load_extension_disable()
-            .map_err(|e| Error::ExtensionLoadFailed(e.to_string()))?;
-
-        Ok(())
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ConnectionManager, TransactionManager};
+    use crate::{ConnectionManager, ConnectionPool, TransactionManager};
     use serde_json::json;
     use tauri::test::{mock_builder, mock_context, noop_assets, MockRuntime};
     use tauri::Manager;
@@ -593,6 +514,7 @@ mod tests {
         app.manage(Rusqlite2Connections {
             app: handle,
             connections: ConnectionManager::default(),
+            pool: ConnectionPool::default(),
             transactions: TransactionManager::default(),
         });
         app
