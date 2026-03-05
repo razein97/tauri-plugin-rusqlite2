@@ -1,5 +1,4 @@
 #![allow(clippy::useless_conversion)] // Needed for rusqlite::ToSql trait
-
 use crate::Error;
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use rusqlite::types::{Null, ValueRef};
@@ -23,7 +22,21 @@ pub(crate) fn json_to_rusqlite_param(value: JsonValue) -> Result<Box<dyn ToSql>,
                 ));
             }
         }
-        JsonValue::String(s) => Box::new(s),
+        JsonValue::String(s) => {
+            // Guard against double-serialization: if the string looks like a
+            // JSON-encoded string (starts and ends with `"`) and is valid JSON,
+            // unwrap the inner value instead of storing the quoted form.
+            //
+            // This happens when a `String` or `&str` is passed through
+            // `serde_json::to_value` twice — e.g. via the `params!` macro on a
+            // value that was already a `serde_json::Value::String`.
+            if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+                if let Ok(JsonValue::String(inner)) = serde_json::from_str::<JsonValue>(&s) {
+                    return Ok(Box::new(inner));
+                }
+            }
+            Box::new(s)
+        }
         JsonValue::Array(_) => {
             return Err(Error::ValueConversionError(
                 "JSON arrays are not supported as parameters".to_string(),
@@ -55,13 +68,7 @@ pub(crate) fn rusqlite_value_to_json(value_ref: ValueRef<'_>) -> Result<JsonValu
                 Error::ValueConversionError(format!("Cannot convert f64 '{}' to JSON Number", f))
             })?)
         }
-        ValueRef::Text(t) => {
-            // Attempt to decode as UTF-8, lossy conversion on error
-            JsonValue::String(String::from_utf8_lossy(t).into_owned())
-        }
-        ValueRef::Blob(b) => {
-            // Encode blob as base64 string
-            JsonValue::String(BASE64_STANDARD.encode(b))
-        }
+        ValueRef::Text(t) => JsonValue::String(String::from_utf8_lossy(t).into_owned()),
+        ValueRef::Blob(b) => JsonValue::String(BASE64_STANDARD.encode(b)),
     })
 }
